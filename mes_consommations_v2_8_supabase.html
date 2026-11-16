@@ -1,0 +1,164 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V2.7</title><style>
+:root{font-family:system-ui,Arial;color:#192a39;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#153b59;color:white;padding:18px 5%}h1{margin:0;font-size:1.4rem}main{max-width:1100px;margin:auto;padding:18px}nav{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}button{border:0;border-radius:8px;padding:10px 14px;background:#dce8f1;color:#163750;cursor:pointer}button.active,button.primary{background:#17689a;color:white}.panel{background:white;border-radius:13px;padding:18px;margin:13px 0;box-shadow:0 2px 10px #0001}label{display:block;font-size:.86rem;margin:8px 0 4px}input,select{width:100%;padding:10px;border:1px solid #c8d4dc;border-radius:7px;font:inherit}form,.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}.muted{color:#607384;font-size:.9rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}.card{padding:16px;background:#edf5fa;border-radius:10px}.big{font-size:1.35rem;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e4e9ed}th{font-size:.84rem} .scroll{overflow:auto}.danger{background:#fbe3e1;color:#8a2929}.small{font-size:.82rem}.notice{padding:12px;background:#fff1d5;border-radius:8px}canvas{width:100%;max-height:260px} @media(max-width:600px){main{padding:10px}.panel{padding:12px}th,td{padding:7px;font-size:.8rem}}
+</style></head><body><header><h1>⚡ Mes Consommations <small>V2.8 — connecté à Supabase</small></h1></header><main>
+<div class="notice" id="storageStatus">Connexion Supabase requise. Les relevés sont stockés dans Supabase ; la session de connexion est conservée sur cet appareil.</div><div class="panel" id="authPanel"><h2>Connexion</h2><form id="loginForm" onsubmit="event.preventDefault();login();return false;"><div><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="username" required></div><div><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password" required></div><button class="primary" id="loginButton" type="button" onclick="login()">Se connecter</button></form><p id="loginStatus" role="status" aria-live="polite" class="muted">Prêt à se connecter.</p></div><div id="accountPanel" hidden class="panel"><span id="accountLabel"></span> <button type="button" onclick="logout()">Se déconnecter</button> <button type="button" onclick="loadAll()">Actualiser les données</button></div>
+<div id="feedback" role="status" aria-live="polite" style="display:none;padding:12px;border-radius:8px;background:#e1f5e8;margin-top:12px"></div><div id="appArea" hidden><nav id="addresses"></nav><nav id="tabs"></nav><section id="view"></section></div>
+</main><script>
+const TYPES={elecJour:['Électricité jour','kWh'],elecNuit:['Électricité nuit','kWh'],eau:['Eau','m³'],chauffage:['Chauffage collectif','kWh'],gaz:['Gaz','m³'],mazout:['Mazout (niveau de cuve)','L']};
+const ADDRESSES=[{id:'chauve',name:'Chauve-souris',meters:['elecJour','elecNuit','eau','chauffage']},{id:'blank',name:'Blankenberge',meters:['elecJour','elecNuit','eau','gaz']},{id:'han',name:'Han-sur-Lesse',meters:['elecJour','elecNuit','eau','mazout']}];
+const URL='https://vmhedkzhmnthfolpvyoq.supabase.co';
+const PUBLIC_KEY='sb_publishable_Zb5RP-smPkwfr9eN0khAaA_4MC2NLZG';
+const SESSION_KEY='mes-consommations-supabase-session-v1';
+function persistSession(){try{if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY)}catch(e){}}
+let session=null,refreshTimer=null, homes={},meters={},roles={},busy=false;
+let data={readings:[],invoices:[],deliveries:[]};let address='chauve',tab='dashboard';
+const $=id=>document.getElementById(id),fmt=(n,d=2)=>Number(n).toLocaleString('fr-BE',{maximumFractionDigits:d}),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),today=()=>localToday();
+function canEdit(){return ['admin','editor'].includes(roles[address])}
+function showError(e){notify('Erreur : '+(e?.message||String(e)),true)}
+async function authFetch(path,body){const r=await fetch(URL+'/auth/v1/'+path,{method:'POST',headers:{apikey:PUBLIC_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});let j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.msg||j.error_description||j.message||'Connexion impossible ('+r.status+')');return j}
+let loggingIn=false;
+async function login(){
+ if(loggingIn)return;
+ const email=$('loginEmail').value.trim(),password=$('loginPassword').value;
+ if(!email||!password){$('loginStatus').textContent='Renseigne ton adresse e-mail et ton mot de passe.';return}
+ loggingIn=true;$('loginButton').disabled=true;$('loginButton').textContent='Connexion…';
+ $('loginStatus').textContent='Connexion à Supabase en cours…';
+ try{
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
+  let response;
+  try{response=await fetch(URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:PUBLIC_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:controller.signal})}finally{clearTimeout(timeout)}
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok)throw Error(result.msg||result.error_description||result.message||'Erreur HTTP '+response.status);
+  if(!result.access_token)throw Error('Aucun jeton de connexion reçu');
+  session=result;session.expires_at=Math.floor(Date.now()/1000)+session.expires_in;persistSession();
+  $('loginPassword').value='';$('loginStatus').textContent='Authentification réussie. Chargement des logements…';
+  await loadAll();
+  if(!$('appArea').hidden){$('loginStatus').textContent='Connecté.'}else{$('loginStatus').textContent='Connecté, mais chargement des données impossible. Voir le message d’erreur ci-dessous.'}
+ }catch(e){$('loginStatus').textContent=e.name==='AbortError'?'Délai dépassé : Supabase ne répond pas. Essaie d’ouvrir le fichier dans un navigateur classique.':'Échec de connexion : '+e.message;showError(e)}
+ finally{loggingIn=false;$('loginButton').disabled=false;$('loginButton').textContent='Se connecter'}
+}
+async function logout(){try{if(session)await fetch(URL+'/auth/v1/logout',{method:'POST',headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+session.access_token}})}catch(e){}session=null;persistSession();data={readings:[],invoices:[],deliveries:[]};$('authPanel').hidden=false;$('accountPanel').hidden=true;$('appArea').hidden=true;$('storageStatus').textContent='Déconnecté. Connecte-toi pour retrouver les données en ligne.'}
+async function ensureSession(){if(!session)throw Error('Connexion requise');if(Date.now()<session.expires_at*1000-60000)return;const next=await authFetch('token?grant_type=refresh_token',{refresh_token:session.refresh_token});session=next;session.expires_at=Math.floor(Date.now()/1000)+next.expires_in;persistSession()}
+async function api(table,{method='GET',query='',body=null,prefer='return=representation'}={}){await ensureSession();const r=await fetch(URL+'/rest/v1/'+table+(query?'?'+query:''),{method,headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',Prefer:prefer},body:body===null?undefined:JSON.stringify(body)});let j=await r.json().catch(()=>null);if(!r.ok)throw Error((j&&j.message)||'Erreur Supabase '+r.status);return j}
+async function loadAll(){try{if(!session)return; if(!session.expires_at)session.expires_at=Math.floor(Date.now()/1000)+session.expires_in;
+ const [hs,ms,mb]=await Promise.all([api('homes',{query:'select=id,code,name'}),api('meters',{query:'select=id,home_id,kind,unit'}),api('memberships',{query:'select=home_id,role'})]);
+ homes=Object.fromEntries(hs.map(h=>[h.code,h]));meters=Object.fromEntries(ms.map(m=>[hs.find(h=>h.id===m.home_id)?.code+':'+m.kind,m]));roles=Object.fromEntries(mb.map(m=>[hs.find(h=>h.id===m.home_id)?.code,m.role]));
+ const [rs,fs,os]=await Promise.all([api('readings',{query:'select=*'}),api('financial_entries',{query:'select=*'}),api('oil_deliveries',{query:'select=*'})]);
+ const homeCode=id=>hs.find(h=>h.id===id)?.code;const meterKind=id=>ms.find(m=>m.id===id)?.kind;
+ data.readings=rs.map(r=>({id:r.id,address:homeCode(r.home_id),type:meterKind(r.meter_id),date:r.reading_date,value:Number(r.reading_value)}));
+ data.invoices=fs.map(f=>({id:f.id,address:homeCode(f.home_id),type:meterKind(f.meter_id),kind:f.kind==='invoice'?'facture':'acompte',date:f.entry_date,from:f.period_start||'',to:f.period_end||'',amount:Number(f.amount_eur)}));
+ data.deliveries=os.map(o=>({id:o.id,address:homeCode(o.home_id),date:o.delivery_date,litres:Number(o.liters),amount:Number(o.amount_eur)}));
+ if(!roles[address])address=hs[0]?.code||'chauve';$('authPanel').hidden=true;$('accountPanel').hidden=false;$('appArea').hidden=false;$('accountLabel').textContent='Connecté — '+(session.user?.email||'compte utilisateur');$('storageStatus').textContent='✓ Données synchronisées avec Supabase. Les modifications sont enregistrées en ligne.';render();
+ }catch(e){showError(e)}}
+function requireWrite(){if(!canEdit())throw Error('Accès en lecture seule pour ce logement');if(busy)throw Error('Une opération est déjà en cours')}
+async function mutate(table,method,payload,id){requireWrite();busy=true;try{await api(table,{method,query:id?'id=eq.'+encodeURIComponent(id):'',body:payload,prefer:'return=minimal'});await loadAll()}finally{busy=false}}
+function relevant(){return ADDRESSES.find(x=>x.id===address)}function typeOptions(){return relevant().meters.map(k=>`<option value="${k}">${TYPES[k][0]} (${TYPES[k][1]})</option>`).join('')}
+function readings(k){return data.readings.filter(x=>x.address===address&&x.type===k).sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id)}
+function periods(k){let a=readings(k),out=[];for(let i=1;i<a.length;i++){let days=Math.round((new Date(a[i].date+'T12:00:00')-new Date(a[i-1].date+'T12:00:00'))/86400000),delta=a[i].value-a[i-1].value;if(days>0&&delta>=0)out.push({from:a[i-1].date,to:a[i].date,days,delta,day:delta/days,annual:delta/days*365})}return out}
+function meterSummary(k){let p=periods(k),r=readings(k),first=r[0],last=r.at(-1),days=first&&last?Math.round((new Date(last.date+'T12:00:00')-new Date(first.date+'T12:00:00'))/86400000):0,delta=last&&first?last.value-first.value:0;return days>0&&delta>=0?{days,delta,avg:delta/days,annual:delta/days*365}:null}
+function notify(message,error=false){let el=$('feedback');el.textContent=message;el.style.display='block';el.style.background=error?'#ffe4e4':'#e1f5e8';}
+function render(){ $('addresses').innerHTML=ADDRESSES.filter(a=>roles[a.id]).map(a=>`<button class="${a.id===address?'active':''}" onclick="chooseAddress('${a.id}')">${a.name}</button>`).join('');$('tabs').innerHTML=[['dashboard','Tableau de bord'],['readings','Relevés'],['invoices','Factures & acomptes'],['comparisons','Comparaisons'],['backup','Sauvegardes']].map(([id,n])=>`<button class="${tab===id?'active':''}" onclick="chooseTab('${id}')">${n}</button>`).join('');$('view').innerHTML=({dashboard:dashboard,readings:readingsPage,invoices:invoicesPage,comparisons:comparisonsPage,backup:backupPage})[tab]();$('view').insertAdjacentHTML('afterbegin',actionPanel());const handlers={readingForm:recordReading,deliveryForm:addDeliveryDirect,invoiceForm:addInvoiceDirect,editForm:saveEditDirect};for(const [id,handler] of Object.entries(handlers)){let el=$(id);if(el)el.addEventListener('submit',e=>{e.preventDefault();handler()})}}
+function chooseAddress(x){address=x;render()}function chooseTab(x){tab=x;render()}
+function dashboard(){return `<div class="panel"><h2>${relevant().name}</h2><p class="muted">Moyenne calculée du premier au dernier index disponible. Projection linéaire sur 365 jours, sans correction saisonnière.</p><div class="cards">${relevant().meters.map(k=>{let s=meterSummary(k);return `<div class="card"><strong>${TYPES[k][0]}</strong>${s?`<p><span class="big">${fmt(s.delta)} ${TYPES[k][1]}</span><br><span class="small">sur ${s.days} jours</span></p><div>${fmt(s.avg)} ${TYPES[k][1]}/jour</div><div><b>${fmt(s.annual)}</b> ${TYPES[k][1]}/an estimés</div>`:'<p class="muted">Deux relevés à des dates différentes requis.</p>'}</div>`}).join('')}</div></div><div class="panel"><h3>Situation financière</h3>${financeSummary()}</div>`}
+function financeSummary(){let a=data.invoices.filter(x=>x.address===address),invoices=a.filter(x=>x.kind==='facture').reduce((s,x)=>s+x.amount,0),advances=a.filter(x=>x.kind==='acompte').reduce((s,x)=>s+x.amount,0);return `<div class="cards"><div class="card">Factures encodées<div class="big">${fmt(invoices)} €</div></div><div class="card">Acomptes versés<div class="big">${fmt(advances)} €</div></div><div class="card">Solde indicatif<div class="big">${fmt(invoices-advances)} €</div><span class="small">Factures moins acomptes, toutes périodes confondues</span></div></div>`}
+function readingsPage(){return `<div class="panel"><h2>Ajouter un relevé</h2><div id="readingForm" class="entry-form" ${canEdit()?'':'hidden'}><div><label>Compteur</label><select name="type">${typeOptions()}</select></div><div><label>Date</label><input name="date" type="date" value="${today()}" required></div><div><label>Index</label><input name="value" type="number" step="any" min="0" required></div><button type="button" class="primary" onclick="recordReading()">Enregistrer</button></div>${address==='han'?'<p class="muted">Pour le mazout, saisir le volume estimé restant dans la cuve en litres. Les livraisons sont encodées séparément.</p>':''}</div><div class="panel"><h3>Historique</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Compteur</th><th>Index</th><th></th></tr></thead><tbody>${data.readings.filter(x=>x.address===address).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${x.date}</td><td>${TYPES[x.type][0]}</td><td>${fmt(x.value)} ${TYPES[x.type][1]}</td><td><button ${canEdit()?'':'hidden'} onclick="editItem('readings','${x.id}')">Modifier</button> <button class="danger" ${canEdit()?'':'hidden'} onclick="removeItem('readings','${x.id}')">Supprimer</button></td></tr>`).join('')||'<tr><td colspan="4">Aucun relevé</td></tr>'}</tbody></table></div></div>${address==='han'?deliveryPage():''}`}
+async function recordReading(){
+try{
+const f=$('readingForm');if(!f)throw new Error('Formulaire introuvable');
+const type=f.querySelector('[name="type"]').value;
+const date=f.querySelector('[name="date"]').value;
+const raw=f.querySelector('[name="value"]').value;
+if(!date||raw.trim()===''){notify('Veuillez renseigner la date et l’index.',true);return}
+const value=Number(raw);
+if(!Number.isFinite(value)||value<0){notify('Index invalide.',true);return}
+await mutate('readings','POST',{home_id:homes[address].id,meter_id:meters[address+':'+type].id,reading_date:date,reading_value:value});notify('✓ Relevé enregistré dans Supabase');
+}catch(e){notify('Erreur : '+e.message,true)}
+}
+function deliveryPage(){return `<div class="panel"><h3>Livraisons de mazout</h3><form id="deliveryForm" ${canEdit()?'':'hidden'}><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Litres livrés</label><input type="number" name="litres" min="0.01" step="any" required></div><div><label>Montant (€)</label><input type="number" name="amount" min="0" step="0.01" required></div><button class="primary" type="button" onclick="addDeliveryDirect()">Ajouter</button></form><div class="scroll"><table><tr><th>Date</th><th>Litres</th><th>Montant</th><th>Prix/L</th><th></th></tr>${data.deliveries.filter(x=>x.address==='han').sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${x.date}</td><td>${fmt(x.litres)}</td><td>${fmt(x.amount)} €</td><td>${x.litres>0?fmt(x.amount/x.litres,3)+' €/L':'—'}</td><td><button ${canEdit()?'':'hidden'} onclick="editItem('deliveries','${x.id}')">Modifier</button> <button class="danger" ${canEdit()?'':'hidden'} onclick="removeItem('deliveries','${x.id}')">Supprimer</button></td></tr>`).join('')}</table></div><p class="muted">Une livraison augmente le niveau de la cuve. Pour calculer la consommation entre deux mesures : niveau initial + livraisons intervenues - niveau final.</p></div>`}
+async function addDeliveryDirect(){
+ const form=document.getElementById('deliveryForm');
+ if(!form){notify('Formulaire de livraison introuvable',true);return}
+ if(!form.reportValidity()){notify('Vérifie la date, les litres et le montant.',true);return}
+ const litres=Number(form.elements.litres.value),montant=Number(form.elements.amount.value);
+ if(!Number.isFinite(litres)||litres<=0||!Number.isFinite(montant)||montant<0){notify('Quantité ou montant invalide.',true);return}
+ try{const f=new FormData(form);await mutate('oil_deliveries','POST',{home_id:homes.han.id,delivery_date:f.get('date'),liters:litres,amount_eur:montant});notify('✓ Livraison enregistrée dans Supabase')}catch(err){showError(err)}
+}
+function invoicesPage(){return `<div class="panel"><h2>Factures et acomptes</h2><form id="invoiceForm" ${canEdit()?'':'hidden'}><div><label>Énergie</label><select name="type">${typeOptions()}</select></div><div><label>Type</label><select name="kind"><option value="facture">Facture</option><option value="acompte">Acompte payé</option></select></div><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Début période (facultatif)</label><input type="date" name="from"></div><div><label>Fin période (facultatif)</label><input type="date" name="to"></div><div><label>Montant (€)</label><input type="number" min="0" step="0.01" name="amount" required></div><button class="primary" type="button" onclick="addInvoiceDirect()">Enregistrer</button></form><p class="muted">Pour éviter un double comptage, encodez les factures pour leur montant total et les acomptes séparément. La réconciliation par période sera affinée dans une prochaine version.</p></div><div class="panel">${financeSummary()}<div class="scroll"><table><tr><th>Date</th><th>Énergie</th><th>Type</th><th>Montant</th><th></th></tr>${data.invoices.filter(x=>x.address===address).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<tr><td>${x.date}</td><td>${TYPES[x.type][0]}</td><td>${x.kind}</td><td>${fmt(x.amount)} €</td><td><button ${canEdit()?'':'hidden'} onclick="editItem('invoices','${x.id}')">Modifier</button> <button class="danger" ${canEdit()?'':'hidden'} onclick="removeItem('invoices','${x.id}')">Supprimer</button></td></tr>`).join('')}</table></div></div>`}
+async function addInvoiceDirect(){
+ const form=document.getElementById('invoiceForm');
+ if(!form){notify('Formulaire de facture introuvable',true);return}
+ if(!form.reportValidity())return;
+ const f=new FormData(form);
+ if(f.get('from')&&f.get('to')&&f.get('from')>f.get('to')){notify('La fin de période précède le début.',true);return}
+ try{const f=new FormData(form);await mutate('financial_entries','POST',{home_id:homes[address].id,meter_id:meters[address+':'+f.get('type')].id,kind:f.get('kind')==='facture'?'invoice':'advance',entry_date:f.get('date'),period_start:f.get('from')||null,period_end:f.get('to')||null,amount_eur:Number(f.get('amount'))});notify('✓ Facture ou acompte enregistré dans Supabase')}catch(err){showError(err)}
+}
+const seasonDates={summerStart:'2026-05-01',summerEnd:'2026-09-30',winterStart:'2026-10-01',winterEnd:'2027-04-30'};
+const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const dayNumber=d=>{const [y,m,day]=d.split('-').map(Number);return Date.UTC(y,m-1,day)/86400000};
+function seasonalIntervals(addr,type){
+ const rr=data.readings.filter(x=>x.address===addr&&x.type===type).sort((a,b)=>a.date.localeCompare(b.date));let out=[];
+ for(let i=1;i<rr.length;i++){
+  const start=rr[i-1],end=rr[i],days=dayNumber(end.date)-dayNumber(start.date);if(days<=0)continue;
+  let delta=end.value-start.value;
+  if(type==='mazout')delta=-delta+data.deliveries.filter(x=>x.address===addr&&x.date>start.date&&x.date<=end.date).reduce((sum,x)=>sum+x.litres,0);
+  if(delta<0)continue;
+  out.push({start:dayNumber(start.date),end:dayNumber(end.date),days,delta});
+ }return out;
+}
+function seasonStats(addr,type,start,end){
+ if(!start||!end||dayNumber(end)<dayNumber(start))return null;
+ const today=localToday();
+ const from=dayNumber(start),to=Math.min(dayNumber(end),dayNumber(today))+1,requested=Math.max(0,to-from);
+ if(requested===0)return {quantity:0,covered:0,requested:0,avg:null};
+ let quantity=0,covered=0;
+ for(const p of seasonalIntervals(addr,type)){
+  const overlap=Math.max(0,Math.min(to,p.end)-Math.max(from,p.start));
+  if(overlap>0){quantity+=p.delta*overlap/p.days;covered+=overlap}
+ }
+ return {quantity,covered,requested,avg:covered?quantity/covered:null};
+}
+function seasonalPage(){
+ const type=address==='chauve'?'chauffage':address==='blank'?'gaz':'mazout';const unit=TYPES[type][1];
+ const [a,b]=[['summerStart','summerEnd'],['winterStart','winterEnd']].map(pair=>seasonStats(address,type,seasonDates[pair[0]],seasonDates[pair[1]]));
+ const effectiveEnd=key=>seasonDates[key]>localToday()?localToday():seasonDates[key];
+ const percent=a?.avg>0&&b?.avg!==null?((b.avg/a.avg)-1)*100:null;
+ const cells=(name,stats)=>`<tr><td>${name}</td><td>${Math.round(stats?.covered||0)} / ${Math.round(stats?.requested||0)}</td><td>${stats?.covered?fmt(stats.quantity)+' '+unit:'—'}</td><td>${stats?.avg!==null&&stats?.avg!==undefined?fmt(stats.avg)+' '+unit+'/jour':'—'}</td><td>${stats?.avg!==null&&stats?.avg!==undefined?fmt(stats.avg*30.44)+' '+unit+'/mois':'—'}</td></tr>`;
+ return `<div class="panel"><h3>Comparaison saisonnière — ${TYPES[type][0]}</h3><p class="muted">Définis deux périodes à comparer. Les consommations sont réparties au prorata des jours entre deux relevés. Si la fin d'une période est future, les calculs s'arrêtent automatiquement à aujourd'hui. Les jours sans intervalle de relevés ne sont pas extrapolés. Pour le mazout, les livraisons entre deux mesures du niveau de cuve sont prises en compte.</p><div class="cards"><div class="card"><strong>☀️ Période 1 — été</strong><label>Du</label><input type="date" value="${seasonDates.summerStart}" onchange="setSeason('summerStart',this.value)"><label>Au</label><input type="date" value="${effectiveEnd('summerEnd')}" onchange="setSeason('summerEnd',this.value)"></div><div class="card"><strong>❄️ Période 2 — hiver</strong><label>Du</label><input type="date" value="${seasonDates.winterStart}" onchange="setSeason('winterStart',this.value)"><label>Au</label><input type="date" value="${effectiveEnd('winterEnd')}" onchange="setSeason('winterEnd',this.value)"></div></div><div class="scroll"><table><tr><th>Période</th><th>Jours calculables / jours écoulés</th><th>Consommation couverte</th><th>Moyenne quotidienne</th><th>Moyenne mensuelle équivalente</th></tr>${cells('Été',a)}${cells('Hiver',b)}</table></div><p><strong>Écart hiver / été :</strong> ${percent===null?'Données insuffisantes pour comparer':fmt(percent,1)+' %'}</p><p class="muted">Les champs « Au » affichent la date effective retenue pour le calcul (au maximum aujourd’hui). Les dates de fin initialement prévues sont conservées pour les calculs des jours suivants. Les estimations saisonnières ne reflètent pas nécessairement la répartition réelle de la consommation au sein d’un intervalle. Une comparaison fiable nécessite des relevés proches des limites de chaque période.</p></div>`;
+}
+function setSeason(key,value){seasonDates[key]=value;render()}
+
+function comparisonsPage(){return seasonalPage()+`<div class="panel"><h2>Comparaisons des consommations</h2><p class="muted">Moyenne sur toute la période mesurée. Comparaison par type de compteur ; les unités différentes ne sont pas additionnées.</p><div class="scroll"><table><tr><th>Adresse</th><th>Compteur</th><th>Jours</th><th>Consommation</th><th>Moyenne/jour</th><th>Projection/an</th></tr>${ADDRESSES.flatMap(a=>a.meters.map(k=>{let old=address;address=a.id;let s=meterSummary(k);address=old;return `<tr><td>${a.name}</td><td>${TYPES[k][0]}</td><td>${s?s.days:'—'}</td><td>${s?fmt(s.delta)+' '+TYPES[k][1]:'—'}</td><td>${s?fmt(s.avg):'—'}</td><td>${s?fmt(s.annual):'—'}</td></tr>`})).join('')}</table></div></div><div class="panel"><h3>Périodes entre relevés — ${relevant().name}</h3><div class="scroll"><table><tr><th>Compteur</th><th>Du</th><th>Au</th><th>Consommation</th><th>Jours</th><th>Projection/an</th></tr>${relevant().meters.flatMap(k=>periods(k).map(p=>`<tr><td>${TYPES[k][0]}</td><td>${p.from}</td><td>${p.to}</td><td>${fmt(p.delta)} ${TYPES[k][1]}</td><td>${p.days}</td><td>${fmt(p.annual)} ${TYPES[k][1]}</td></tr>`)).join('')}</table></div></div>`}
+function backupPage(){return `<div class="panel"><h2>Export de sécurité</h2><p>Les données sont conservées dans Supabase. Tu peux télécharger une copie JSON à tout moment. L'import automatique n'est pas encore disponible.</p><button class="primary" type="button" onclick="exportData()">Exporter une copie JSON</button></div>`}
+let pendingAction=null;
+const FIELD_LABELS={type:'Compteur',date:'Date',value:'Index',litres:'Litres livrés',amount:'Montant (€)',from:'Début de période',to:'Fin de période'};
+function editItem(k,id){if(!canEdit())return;pendingAction={mode:'edit',k,id};render();document.getElementById('editPanel')?.scrollIntoView({behavior:'smooth',block:'center'})}
+function removeItem(k,id){if(!canEdit())return;pendingAction={mode:'delete',k,id};render();document.getElementById('editPanel')?.scrollIntoView({behavior:'smooth',block:'center'})}
+function cancelAction(){pendingAction=null;render()}
+function actionPanel(){
+ if(!pendingAction)return '';
+ const {mode,k,id}=pendingAction,x=data[k].find(v=>v.id===id);
+ if(!x){pendingAction=null;return ''}
+ if(mode==='delete')return `<div class="panel" id="editPanel" style="border:2px solid #bf3e3e"><h3>Confirmer la suppression</h3><p>Supprimer définitivement l'enregistrement du ${esc(x.date)} ?</p><button class="danger" type="button" onclick="confirmDelete()">Oui, supprimer</button> <button type="button" onclick="cancelAction()">Annuler</button></div>`;
+ let fields=k==='readings'?['type','date','value']:k==='deliveries'?['date','litres','amount']:['type','date','from','to','amount'];
+ return `<div class="panel" id="editPanel" style="border:2px solid #17689a"><h3>Modifier un enregistrement</h3><form id="editForm">${fields.map(f=>f==="type"?`<div><label>Compteur</label><select name="type">${ADDRESSES.find(a=>a.id===x.address).meters.map(t=>`<option value="${t}" ${x.type===t?"selected":""}>${TYPES[t][0]} (${TYPES[t][1]})</option>`).join("")}</select></div>`:`<div><label>${FIELD_LABELS[f]}</label><input name="${f}" type="${['date','from','to'].includes(f)?'date':'number'}" ${['value','litres','amount'].includes(f)?'step="any" min="0"':''} value="${esc(x[f]??'')}" ${['date','value','litres','amount'].includes(f)?'required':''}></div>`).join('')}<button class="primary" type="button" onclick="saveEditDirect()">Enregistrer les modifications</button><button type="button" onclick="cancelAction()">Annuler</button></form></div>`
+}
+async function confirmDelete(){if(!pendingAction||pendingAction.mode!=='delete')return;const {k,id}=pendingAction;try{const table={readings:'readings',invoices:'financial_entries',deliveries:'oil_deliveries'}[k];await mutate(table,'DELETE',null,id);pendingAction=null;render();notify('✓ Suppression enregistrée dans Supabase')}catch(e){showError(e)}}
+async function saveEditDirect(){const form=$('editForm');if(!form){notify('Formulaire introuvable',true);return}if(!form.reportValidity())return;if(!pendingAction)return;
+ const {k,id}=pendingAction,x=data[k].find(v=>v.id===id);if(!x)return;const f=new FormData(form);
+ try{let table,payload;if(k==='readings'){table='readings';payload={meter_id:meters[x.address+':'+f.get('type')].id,reading_date:f.get('date'),reading_value:Number(f.get('value'))}}
+ else if(k==='deliveries'){table='oil_deliveries';payload={delivery_date:f.get('date'),liters:Number(f.get('litres')),amount_eur:Number(f.get('amount'))}}
+ else{table='financial_entries';payload={meter_id:meters[x.address+':'+f.get('type')].id,entry_date:f.get('date'),period_start:f.get('from')||null,period_end:f.get('to')||null,amount_eur:Number(f.get('amount'))}}
+ if(payload.period_start&&payload.period_end&&payload.period_start>payload.period_end)throw Error('Période invalide');await mutate(table,'PATCH',payload,id);pendingAction=null;render();notify('✓ Modifications enregistrées dans Supabase')
+ }catch(e){showError(e)}}
+function exportData(){let b=new Blob([JSON.stringify({version:1,...data},null,2)],{type:'application/json'}),u=window.URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='mes-consommations-'+today()+'.json';a.click();setTimeout(()=>window.URL.revokeObjectURL(u),500)}
+async function restoreSession(){
+ let saved=null;try{saved=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(e){}
+ if(!saved?.refresh_token)return;
+ session=saved;
+ $('loginStatus').textContent='Restauration de la session…';
+ try{await ensureSession();await loadAll();if($('appArea').hidden)$('loginStatus').textContent='Session retrouvée, mais chargement des données impossible.'}
+ catch(e){session=null;persistSession();$('loginStatus').textContent='Session expirée. Reconnecte-toi.'}
+}
+$('storageStatus').textContent='Connexion à Supabase…';
+restoreSession();
+</script></body></html>
