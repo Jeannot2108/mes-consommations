@@ -1,6 +1,6 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.3</title><style>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4</title><style>
 :root{font-family:system-ui,Arial;color:#192a39;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#153b59;color:white;padding:18px 5%}h1{margin:0;font-size:1.4rem}main{max-width:1100px;margin:auto;padding:18px}nav{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}button{border:0;border-radius:8px;padding:10px 14px;background:#dce8f1;color:#163750;cursor:pointer}button.active,button.primary{background:#17689a;color:white}.panel{background:white;border-radius:13px;padding:18px;margin:13px 0;box-shadow:0 2px 10px #0001}label{display:block;font-size:.86rem;margin:8px 0 4px}input,select{width:100%;padding:10px;border:1px solid #c8d4dc;border-radius:7px;font:inherit}form,.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}.muted{color:#607384;font-size:.9rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}.card{padding:16px;background:#edf5fa;border-radius:10px}.big{font-size:1.35rem;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e4e9ed}th{font-size:.84rem} .scroll{overflow:auto}.danger{background:#fbe3e1;color:#8a2929}.small{font-size:.82rem}.notice{padding:12px;background:#fff1d5;border-radius:8px}canvas{width:100%;max-height:260px} @media(max-width:600px){main{padding:10px}.panel{padding:12px}th,td{padding:7px;font-size:.8rem}}
-</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.3 — connecté à Supabase</small></h1></header><main>
+</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4 — connecté à Supabase</small></h1></header><main>
 <div class="notice" id="storageStatus">Connexion Supabase requise. Les relevés sont stockés dans Supabase ; la session de connexion est conservée sur cet appareil.</div><div class="panel" id="authPanel"><h2>Connexion</h2><form id="loginForm" onsubmit="event.preventDefault();login();return false;"><div><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="username" required></div><div><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password" required></div><button class="primary" id="loginButton" type="button" onclick="login()">Se connecter</button></form><p id="loginStatus" role="status" aria-live="polite" class="muted">Prêt à se connecter.</p></div><div id="accountPanel" hidden class="panel"><span id="accountLabel"></span> <button type="button" onclick="logout()">Se déconnecter</button> <button type="button" onclick="loadAll()">Actualiser les données</button></div>
 <div id="feedback" role="status" aria-live="polite" style="display:none;padding:12px;border-radius:8px;background:#e1f5e8;margin-top:12px"></div><div id="appArea" hidden><nav id="addresses"></nav><nav id="tabs"></nav><section id="view"></section></div>
 </main><script>
@@ -11,7 +11,7 @@ const PUBLIC_KEY='sb_publishable_Zb5RP-smPkwfr9eN0khAaA_4MC2NLZG';
 const SESSION_KEY='mes-consommations-supabase-session-v1';
 function persistSession(){try{if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY)}catch(e){}}
 let session=null,refreshTimer=null, homes={},meters={},roles={},busy=false;
-let data={readings:[],invoices:[],deliveries:[],tariffs:[]};let address='chauve',tab='dashboard';
+let data={readings:[],invoices:[],deliveries:[],tariffs:[],exerciseSettings:[]};let address='chauve',tab='dashboard';
 const $=id=>document.getElementById(id),fmt=(n,d=2)=>Number(n).toLocaleString('fr-BE',{maximumFractionDigits:d}),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),today=()=>localToday();
 function canEdit(){return ['admin','editor'].includes(roles[address])}
 function showError(e){notify('Erreur : '+(e?.message||String(e)),true)}
@@ -37,18 +37,19 @@ async function login(){
  }catch(e){$('loginStatus').textContent=e.name==='AbortError'?'Délai dépassé : Supabase ne répond pas. Essaie d’ouvrir le fichier dans un navigateur classique.':'Échec de connexion : '+e.message;showError(e)}
  finally{loggingIn=false;$('loginButton').disabled=false;$('loginButton').textContent='Se connecter'}
 }
-async function logout(){try{if(session)await fetch(URL+'/auth/v1/logout',{method:'POST',headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+session.access_token}})}catch(e){}session=null;persistSession();data={readings:[],invoices:[],deliveries:[],tariffs:[]};$('authPanel').hidden=false;$('accountPanel').hidden=true;$('appArea').hidden=true;$('storageStatus').textContent='Déconnecté. Connecte-toi pour retrouver les données en ligne.'}
+async function logout(){try{if(session)await fetch(URL+'/auth/v1/logout',{method:'POST',headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+session.access_token}})}catch(e){}session=null;persistSession();data={readings:[],invoices:[],deliveries:[],tariffs:[],exerciseSettings:[]};$('authPanel').hidden=false;$('accountPanel').hidden=true;$('appArea').hidden=true;$('storageStatus').textContent='Déconnecté. Connecte-toi pour retrouver les données en ligne.'}
 async function ensureSession(){if(!session)throw Error('Connexion requise');if(Date.now()<session.expires_at*1000-60000)return;const next=await authFetch('token?grant_type=refresh_token',{refresh_token:session.refresh_token});session=next;session.expires_at=Math.floor(Date.now()/1000)+next.expires_in;persistSession()}
 async function api(table,{method='GET',query='',body=null,prefer='return=representation'}={}){await ensureSession();const r=await fetch(URL+'/rest/v1/'+table+(query?'?'+query:''),{method,headers:{apikey:PUBLIC_KEY,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',Prefer:prefer},body:body===null?undefined:JSON.stringify(body)});let j=await r.json().catch(()=>null);if(!r.ok)throw Error((j&&j.message)||'Erreur Supabase '+r.status);return j}
 async function loadAll(){try{if(!session)return; if(!session.expires_at)session.expires_at=Math.floor(Date.now()/1000)+session.expires_in;
  const [hs,ms,mb]=await Promise.all([api('homes',{query:'select=id,code,name'}),api('meters',{query:'select=id,home_id,kind,unit'}),api('memberships',{query:'select=home_id,role'})]);
  homes=Object.fromEntries(hs.map(h=>[h.code,h]));meters=Object.fromEntries(ms.map(m=>[hs.find(h=>h.id===m.home_id)?.code+':'+m.kind,m]));roles=Object.fromEntries(mb.map(m=>[hs.find(h=>h.id===m.home_id)?.code,m.role]));
- const [rs,fs,os,ts]=await Promise.all([api('readings',{query:'select=*'}),api('financial_entries',{query:'select=*'}),api('oil_deliveries',{query:'select=*'}),api('electricity_tariffs',{query:'select=*'})]);
+ const [rs,fs,os,ts,es]=await Promise.all([api('readings',{query:'select=*'}),api('financial_entries',{query:'select=*'}),api('oil_deliveries',{query:'select=*'}),api('electricity_tariffs',{query:'select=*'}),api('exercise_settings',{query:'select=*'})]);
  const homeCode=id=>hs.find(h=>h.id===id)?.code;const meterKind=id=>ms.find(m=>m.id===id)?.kind;
  data.readings=rs.map(r=>({id:r.id,address:homeCode(r.home_id),type:meterKind(r.meter_id),date:r.reading_date,value:Number(r.reading_value)}));
  data.invoices=fs.map(f=>({id:f.id,address:homeCode(f.home_id),type:meterKind(f.meter_id),kind:f.kind==='invoice'?'facture':'acompte',date:f.entry_date,from:f.period_start||'',to:f.period_end||'',amount:Number(f.amount_eur)}));
  data.deliveries=os.map(o=>({id:o.id,address:homeCode(o.home_id),date:o.delivery_date,litres:Number(o.liters),amount:Number(o.amount_eur)}));
  data.tariffs=ts.map(t=>({id:t.id,address:homeCode(t.home_id),date:t.effective_date,day:Number(t.day_eur_kwh),night:Number(t.night_eur_kwh)}));
+ data.exerciseSettings=es.map(e=>({id:e.id,address:homeCode(e.home_id),kind:e.kind,month:e.start_month,day:e.start_day}));
  if(!roles[address])address=hs[0]?.code||'chauve';$('authPanel').hidden=true;$('accountPanel').hidden=false;$('appArea').hidden=false;$('accountLabel').textContent='Connecté — '+(session.user?.email||'compte utilisateur');$('storageStatus').textContent='✓ Données synchronisées avec Supabase. Les modifications sont enregistrées en ligne.';render();
  }catch(e){showError(e)}}
 function requireWrite(){if(!canEdit())throw Error('Accès en lecture seule pour ce logement');if(busy)throw Error('Une opération est déjà en cours')}
@@ -60,7 +61,61 @@ function meterSummary(k){let p=periods(k),r=readings(k),first=r[0],last=r.at(-1)
 function notify(message,error=false){let el=$('feedback');el.textContent=message;el.style.display='block';el.style.background=error?'#ffe4e4':'#e1f5e8';}
 function render(){ $('addresses').innerHTML=ADDRESSES.filter(a=>roles[a.id]).map(a=>`<button class="${a.id===address?'active':''}" onclick="chooseAddress('${a.id}')">${a.name}</button>`).join('');$('tabs').innerHTML=[['dashboard','Tableau de bord'],['electricity','Électricité totale'],['periods','Par période'],['readings','Relevés'],['invoices','Factures & acomptes'],['backup','Sauvegardes']].map(([id,n])=>`<button class="${tab===id?'active':''}" onclick="chooseTab('${id}')">${n}</button>`).join('');$('view').innerHTML=({dashboard:dashboard,electricity:electricityPage,periods:periodsPage,readings:readingsPage,invoices:invoicesPage,backup:backupPage})[tab]();$('view').insertAdjacentHTML('afterbegin',actionPanel());const handlers={readingForm:recordReading,deliveryForm:addDeliveryDirect,invoiceForm:addInvoiceDirect,editForm:saveEditDirect};for(const [id,handler] of Object.entries(handlers)){let el=$(id);if(el)el.addEventListener('submit',e=>{e.preventDefault();handler()})}}
 function chooseAddress(x){address=x;render()}function chooseTab(x){tab=x;render()}
-function dashboard(){return `<div class="panel"><p><button class="primary" type="button" onclick="chooseTab('electricity')">⚡ Voir le total électricité (jour + nuit)</button></p></div><div class="panel"><h2>${relevant().name}</h2><p class="muted">Moyenne calculée du premier au dernier index disponible. Projection linéaire sur 365 jours, sans correction saisonnière.</p><div class="cards">${relevant().meters.map(k=>{let s=meterSummary(k);return `<div class="card"><strong>${TYPES[k][0]}</strong>${s?`<p><span class="big">${fmt(s.delta)} ${TYPES[k][1]}</span><br><span class="small">sur ${s.days} jours</span></p><div>${fmt(s.avg)} ${TYPES[k][1]}/jour</div><div><b>${fmt(s.annual)}</b> ${TYPES[k][1]}/an estimés</div>`:'<p class="muted">Deux relevés à des dates différentes requis.</p>'}</div>`}).join('')}</div></div><div class="panel"><h3>Situation financière</h3>${financeSummary()}</div>`}
+function isoDay(n){return new Date(n*86400000).toISOString().slice(0,10)}
+function exerciseBounds(month,day,now=localToday()){
+ const y=Number(now.slice(0,4));const safe=(yr)=>{const d=new Date(Date.UTC(yr,month-1,day));return d.getUTCMonth()===month-1?isoDay(d.getTime()/86400000):`${yr}-02-28`};
+ const begin=safe(y)<=now?safe(y):safe(y-1);const yr=Number(begin.slice(0,4));return {start:begin,end:safe(yr+1),previousStart:safe(yr-1),previousEnd:begin};
+}
+function exerciseStat(kind,start,end){
+ if(kind==='elecTotal'){
+  const c=electricityCalculation(start,end);return c?{quantity:c.total,covered:c.covered,requested:c.requested}:null;
+ }
+ // seasonStats prend des dates inclusives, tandis que les exercices sont [début, fin[.
+ return seasonStats(address,kind,start,isoDay(dayNumber(end)-1));
+}
+function forecastExercise(kind,bounds){
+ const today=localToday(),cutoff=isoDay(Math.min(dayNumber(today)+1,dayNumber(bounds.end)));
+ const current=exerciseStat(kind,bounds.start,cutoff);
+ const previous=exerciseStat(kind,bounds.previousStart,bounds.previousEnd);
+ const daysElapsed=dayNumber(cutoff)-dayNumber(bounds.start),daysYear=dayNumber(bounds.end)-dayNumber(bounds.start);
+ const prevElapsedEnd=isoDay(Math.min(dayNumber(bounds.previousStart)+daysElapsed,dayNumber(bounds.previousEnd)));
+ const previousSame=exerciseStat(kind,bounds.previousStart,prevElapsedEnd);
+ const remaining=exerciseStat(kind,prevElapsedEnd,bounds.previousEnd);
+ const fullCurrent=current&&current.covered===daysElapsed&&daysElapsed>0;
+ const fullPrevious=previous&&previous.covered===daysYear;
+ const fullSame=previousSame&&previousSame.covered===daysElapsed;
+ const fullRemaining=remaining&&remaining.covered===daysYear-daysElapsed;
+ // Ne pas inventer un profil saisonnier : les deux morceaux de l'année précédente doivent être couverts.
+ let forecast=null,method='';
+ if(fullCurrent&&fullPrevious&&fullSame&&fullRemaining&&previousSame.quantity>0){
+  const factor=current.quantity/previousSame.quantity;
+  forecast=current.quantity+remaining.quantity*factor;
+  method='Projection saisonnière : consommation actuelle + reste de l’exercice précédent ajusté au rythme observé cette année.';
+ }else if(fullCurrent&&fullPrevious&&fullSame&&fullRemaining&&previousSame.quantity===0&&current.quantity===0){
+  forecast=remaining.quantity;method='Profil de l’année précédente, sans hausse constatée sur la période écoulée.';
+ }
+ return {current,previous,forecast,method,daysElapsed,daysYear,fullCurrent,fullPrevious};
+}
+async function saveExerciseSetting(kind){
+ if(!canEdit())return notify('Accès en lecture seule.',true);
+ const el=$('exerciseDate_'+kind);if(!el)return;const parts=el.value.split('-').map(Number);
+ if(parts.length!==2||!Number.isInteger(parts[0])||!Number.isInteger(parts[1])||parts[0]<1||parts[0]>12||parts[1]<1||parts[1]>31||new Date(Date.UTC(2024,parts[0]-1,parts[1])).getUTCMonth()!==parts[0]-1)return notify('Jour et mois invalides.',true);
+ try{await requireWrite();busy=true;try{await api('exercise_settings',{method:'POST',query:'on_conflict=home_id%2Ckind',body:{home_id:homes[address].id,kind,start_month:parts[0],start_day:parts[1]},prefer:'resolution=merge-duplicates,return=minimal'});await loadAll()}finally{busy=false}notify('✓ Date de début d’exercice enregistrée dans Supabase.')}catch(e){showError(e)}
+}
+function dashboard(){
+ const now=localToday();const kinds=[['elecTotal','Électricité totale','kWh'],...relevant().meters.filter(k=>!['elecJour','elecNuit'].includes(k)).map(k=>[k,TYPES[k][0],TYPES[k][1]]),['elecJour','Électricité jour','kWh'],['elecNuit','Électricité nuit','kWh']];
+ const cards=kinds.map(([kind,label,unit])=>{
+  const setting=data.exerciseSettings.find(x=>x.address===address&&x.kind===kind);
+  const month=setting?.month||1,day=setting?.day||1,b=exerciseBounds(month,day,now),v=forecastExercise(kind,b);
+  const fullPrev=v.fullPrevious;
+  const cur=v.current?.covered?fmt(v.current.quantity)+' '+unit:'—';
+  const prev=fullPrev?fmt(v.previous.quantity)+' '+unit:'non calculable (exercice incomplet)';
+  const f=v.forecast===null?'Projection saisonnière indisponible':fmt(v.forecast)+' '+unit;
+  const dateValue=String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  return `<div class="card"><strong>${label}</strong><p class="muted small">Exercice : ${b.start} au ${isoDay(dayNumber(b.end)-1)}</p><div class="big">${cur}</div><div class="small">(${prev} — exercice précédent)</div><p><strong>Fin d’exercice estimée :</strong><br>${f}</p><p class="muted small">${v.method||'Historique saisonnier insuffisant pour une projection fiable.'} Couverture actuelle : ${v.current?.covered||0}/${v.daysElapsed} jours.</p><div><label>Début annuel (mois-jour)</label><div style="display:flex;gap:6px"><input type="text" id="exerciseDate_${kind}" value="${dateValue}" pattern="(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])" placeholder="MM-JJ" aria-label="Début annuel ${label}" ${canEdit()?'':'disabled'}><button type="button" ${canEdit()?'':'disabled'} onclick="saveExerciseSetting('${kind}')">Enregistrer</button></div></div></div>`;
+ }).join('');
+ return `<div class="panel"><h2>${esc(relevant().name)} — Exercice en cours</h2><p class="muted">Chaque énergie possède sa date anniversaire. La consommation actuelle est calculée jusqu’à aujourd’hui sur les jours couverts par les relevés ; elle peut être partielle. L’exercice précédent entre parenthèses n’est affiché que s’il est entièrement couvert. La projection tient compte de la saisonnalité observée l’année précédente et n’est affichée que lorsque les deux exercices disposent des relevés nécessaires.</p><div class="cards">${cards}</div></div><div class="panel"><h3>Situation financière</h3>${financeSummary()}</div>`;
+}
 function electricitySegments(kind){
  const rr=data.readings.filter(r=>r.address===address&&r.type===kind).sort((a,b)=>a.date.localeCompare(b.date));
  const segments=[];
