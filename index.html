@@ -1,6 +1,6 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.8</title><style>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.9</title><style>
 :root{font-family:system-ui,Arial;color:#192a39;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#153b59;color:white;padding:18px 5%}h1{margin:0;font-size:1.4rem}main{max-width:1100px;margin:auto;padding:18px}nav{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}button{border:0;border-radius:8px;padding:10px 14px;background:#dce8f1;color:#163750;cursor:pointer}button.active,button.primary{background:#17689a;color:white}.panel{background:white;border-radius:13px;padding:18px;margin:13px 0;box-shadow:0 2px 10px #0001}label{display:block;font-size:.86rem;margin:8px 0 4px}input,select{width:100%;padding:10px;border:1px solid #c8d4dc;border-radius:7px;font:inherit}form,.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}.muted{color:#607384;font-size:.9rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}.card{padding:16px;background:#edf5fa;border-radius:10px}.big{font-size:1.35rem;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e4e9ed}th{font-size:.84rem} .scroll{overflow:auto}.consumption-alert{background:#fff0f0;color:#9b1c1c;border:2px solid #c92d2d;border-radius:9px;padding:12px;margin:10px 0;grid-column:1 / -1}.alert-row{background:#fff0f0;color:#9b1c1c}.danger{background:#fbe3e1;color:#8a2929}.small{font-size:.82rem}.notice{padding:12px;background:#fff1d5;border-radius:8px}canvas{width:100%;max-height:260px}details.explanation{margin:10px 0}details.explanation summary{cursor:pointer;color:#17689a;font-size:.86rem;font-weight:600}details.explanation[open]{padding-bottom:5px} @media(max-width:600px){main{padding:10px}.panel{padding:12px}th,td{padding:7px;font-size:.8rem}}
-</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.8 — connecté à Supabase</small></h1></header><main>
+ .indicative-row{background:#fff4dd;color:#704500} .indicative-row td{color:#704500}</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.9 — connecté à Supabase</small></h1></header><main>
 <div class="notice" id="storageStatus">Connexion Supabase requise. Les relevés sont stockés dans Supabase ; la session de connexion est conservée sur cet appareil.</div><div class="panel" id="authPanel"><h2>Connexion</h2><form id="loginForm" onsubmit="event.preventDefault();login();return false;"><div><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="username" required></div><div><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password" required></div><button class="primary" id="loginButton" type="button" onclick="login()">Se connecter</button></form><p id="loginStatus" role="status" aria-live="polite" class="muted">Prêt à se connecter.</p></div><div id="accountPanel" hidden class="panel"><span id="accountLabel"></span> <button type="button" onclick="logout()">Se déconnecter</button> <button type="button" onclick="loadAll()">Actualiser les données</button></div>
 <div id="feedback" role="status" aria-live="polite" style="display:none;padding:12px;border-radius:8px;background:#e1f5e8;margin-top:12px"></div><div id="appArea" hidden><nav id="addresses"></nav><nav id="tabs"></nav><section id="view"></section></div>
 </main><script>
@@ -75,7 +75,13 @@ function exerciseStat(kind,start,end){
 function forecastExercise(kind,bounds){
  // Les intervalles entre deux index sont [date du premier relevé, date du second[.
  // Le jour actuel n'est pas écoulé : ne pas le compter comme couvert ou manquant.
- const today=localToday(),cutoff=isoDay(Math.min(dayNumber(today),dayNumber(bounds.end)));
+ const today=localToday();
+ // Prévoir à partir du dernier relevé effectivement disponible, pas de la date du jour.
+ // Un compteur relevé le 31/10 peut ainsi être projeté en novembre sans inventer sa consommation.
+ const relevantKinds=kind==='elecTotal'?['elecJour','elecNuit']:[kind];
+ const lastDates=relevantKinds.map(k=>data.readings.filter(r=>r.address===address&&r.type===k&&r.date<=today&&r.date>=bounds.start).map(r=>r.date).sort().at(-1));
+ const lastCommon=lastDates.every(Boolean)?lastDates.sort()[0]:bounds.start;
+ const cutoff=isoDay(Math.min(dayNumber(today),dayNumber(bounds.end),dayNumber(lastCommon)));
  const current=exerciseStat(kind,bounds.start,cutoff);
  const previous=exerciseStat(kind,bounds.previousStart,bounds.previousEnd);
  const daysElapsed=dayNumber(cutoff)-dayNumber(bounds.start),daysYear=dayNumber(bounds.end)-dayNumber(bounds.start);
@@ -106,7 +112,7 @@ function forecastExercise(kind,bounds){
   if(missing)method+=' Certaines journées non couvertes (jusqu’à '+missing+') sont estimées au prorata des relevés disponibles.';
   method+=' La météo et l’occupation futures peuvent différer de l’année précédente. La projection ne nécessite pas une couverture complète de l’exercice précédent : seule la période historique correspondant aux jours restants est requise.';
  }
- return {current,previous,forecast,method,daysElapsed,daysYear,fullCurrent,fullPrevious};
+ return {current,previous,forecast,method,daysElapsed,daysYear,fullCurrent,fullPrevious,cutoff};
 }
 async function saveExerciseSetting(kind){
  if(!canEdit())return notify('Accès en lecture seule.',true);
@@ -122,12 +128,12 @@ function dashboard(){
   const fullPrev=v.fullPrevious;
   const cur=v.current?.covered?fmt(v.current.quantity)+' '+unit:'—';
   const prev=fullPrev?fmt(v.previous.quantity)+' '+unit:'non calculable (exercice incomplet)';
-  const f=v.forecast===null?'Projection saisonnière indisponible':fmt(v.forecast)+' '+unit;
+  const f=v.forecast===null?'Projection saisonnière indisponible':fmt(v.forecast)+' '+unit+' (au '+v.cutoff+')';
   const latestDates=kind==='elecTotal'?[...readings('elecJour'),...readings('elecNuit')].map(r=>r.date):readings(kind).map(r=>r.date);
   const latest=latestDates.filter(d=>d<=now).sort().at(-1)||null;
   const uncovered=Math.max(0,v.daysElapsed-(v.current?.covered||0));
   const dateValue=String(day).padStart(2,'0')+'-'+String(month).padStart(2,'0');
-  return `<div class="card"><strong>${label}</strong><p class="muted small">Exercice : ${b.start} au ${isoDay(dayNumber(b.end)-1)}</p><div class="big">${cur}</div><div class="small">(${prev} — exercice précédent)</div><p><strong>Fin d’exercice estimée :</strong><br>${f}</p><details class="explanation"><summary>ⓘ Explications du calcul</summary><p class="muted small">${v.method||'Projection indisponible : il faut des relevés couvrant la période restante équivalente de l’année précédente (tolérance : 7 jours maximum et 5 %), ainsi que les relevés de l’exercice en cours.'} Couverture des jours écoulés (hors aujourd’hui) : ${v.current?.covered||0}/${v.daysElapsed} jours.${latest?' Dernier relevé : '+latest+'.':''}${uncovered?' '+uncovered+' jour(s) écoulé(s) non couvert(s) par des relevés.':''}${kind==='elecTotal'&&v.current?' Jour : '+v.current.dayCovered+'/'+v.daysElapsed+' ; nuit : '+v.current.nightCovered+'/'+v.daysElapsed+'.':''}</p></details><div><label>Début annuel (jour-mois)</label><div style="display:flex;gap:6px"><input type="text" id="exerciseDate_${kind}" value="${dateValue}" pattern="(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])" placeholder="JJ-MM" aria-label="Début annuel ${label}" ${canEdit()?'':'disabled'}><button type="button" ${canEdit()?'':'disabled'} onclick="saveExerciseSetting('${kind}')">Enregistrer</button></div></div></div>`;
+  return `<div class="card"><strong>${label}</strong><p class="muted small">Exercice : ${b.start} au ${isoDay(dayNumber(b.end)-1)}</p><div class="big">${cur}</div><div class="small">(${prev} — exercice précédent)</div><p><strong>Fin d’exercice estimée :</strong><br>${f}</p><details class="explanation"><summary>ⓘ Explications du calcul</summary><p class="muted small">${v.method||'Projection indisponible : il faut des relevés couvrant la période restante équivalente de l’année précédente (tolérance : 7 jours maximum et 5 %), ainsi que les relevés de l’exercice en cours.'} Couverture jusqu’au dernier relevé exploitable (${v.cutoff}) : ${v.current?.covered||0}/${v.daysElapsed} jours.${latest?' Dernier relevé : '+latest+'.':''}${uncovered?' '+uncovered+' jour(s) écoulé(s) non couvert(s) par des relevés.':''}${kind==='elecTotal'&&v.current?' Jour : '+v.current.dayCovered+'/'+v.daysElapsed+' ; nuit : '+v.current.nightCovered+'/'+v.daysElapsed+'.':''}</p></details><div><label>Début annuel (jour-mois)</label><div style="display:flex;gap:6px"><input type="text" id="exerciseDate_${kind}" value="${dateValue}" pattern="(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])" placeholder="JJ-MM" aria-label="Début annuel ${label}" ${canEdit()?'':'disabled'}><button type="button" ${canEdit()?'':'disabled'} onclick="saveExerciseSetting('${kind}')">Enregistrer</button></div></div></div>`;
  }).join('');
  const alerts=latestConsumptionAlerts(address);const alertSection=alerts.map(x=>'<p><strong>'+esc(TYPES[x.type][0])+' — relevé du '+x.date+'</strong></p>'+alertMarkup(x.alert)).join('');
  return `<div class="panel"><h2>${esc(relevant().name)} — Exercice en cours</h2>${alertSection}<details class="explanation"><summary>ⓘ Comment lire le tableau de bord ?</summary><p class="muted">Chaque énergie possède sa date anniversaire. La consommation actuelle est calculée sur les intervalles encadrés par les relevés, sans compter la journée en cours ; elle peut être partielle. L’exercice précédent entre parenthèses n’est affiché que s’il est entièrement couvert. Pour le chauffage et le gaz, la prévision s’appuie sur la consommation de la même période restante l’année précédente ; les autres compteurs utilisent leur profil historique.</p></details><div class="cards">${cards}</div></div><div class="panel"><h3>Situation financière</h3>${financeSummary()}</div>`;
@@ -183,19 +189,20 @@ function readingsPage(){
   }
   if(after&&r.type!=='mazout'&&r.value>after.value)warning='⚠ Index supérieur au suivant';
   if(after&&r.date===after.date)warning='⚠ Deux relevés à la même date';
-  const a=consumptionAlert(address,r.type,r.date,r.value,r.id);if(a)warning+=(warning?' · ':'')+'🔴 Surconsommation +'+fmt(a.rise,1)+' %';
-  return {delta,warning,alert:!!a};
+  const a=consumptionAlert(address,r.type,r.date,r.value,r.id);if(a)warning+=(warning?' · ':'')+(a.indicative?'🟠 Hausse indicative ':'🔴 Surconsommation +')+fmt(a.rise,1)+' %';
+  return {delta,warning,alert:!!a&&!a.indicative,indicative:!!a?.indicative};
  };
  rr.sort((a,b)=>f.order==='asc'?a.date.localeCompare(b.date):b.date.localeCompare(a.date));
  return `<div class="panel"><h2>Ajouter un relevé</h2><div id="readingForm" class="entry-form" ${canEdit()?'':'hidden'}><div><label>Compteur</label><select name="type">${typeOptions()}</select></div><div><label>Date</label><input name="date" type="date" value="${today()}" required></div><div><label>Index</label><input name="value" type="number" step="any" min="0" required></div><button type="button" class="primary" onclick="recordReading()">Enregistrer</button></div>${address==='han'?'<p class="muted">Pour le mazout, saisir le volume estimé restant dans la cuve en litres. Les livraisons sont encodées séparément.</p>':''}</div><div class="panel"><h3>Historique des relevés</h3>
  <div class="entry-form"><div><label>Afficher</label><select id="readingFilterKind" onchange="setReadingFilter()"><option value="all">Tous les compteurs</option>${relevant().meters.map(k=>`<option value="${k}" ${f.kind===k?'selected':''}>${TYPES[k][0]}</option>`).join('')}</select></div>
  <div><label>Ordre</label><select id="readingFilterOrder" onchange="setReadingFilter()"><option value="desc" ${f.order==='desc'?'selected':''}>Plus récents d'abord</option><option value="asc" ${f.order==='asc'?'selected':''}>Plus anciens d'abord</option></select></div></div>
  <p class="muted">La différence est calculée par rapport au relevé chronologiquement précédent du même compteur. Les anomalies d'index et les doublons sont signalés.</p>
- <div class="scroll"><table><thead><tr><th>Date</th><th>Compteur</th><th>Index</th><th>Depuis le précédent</th><th>Contrôle</th><th>Actions</th></tr></thead><tbody>${rr.map(x=>{const st=status(x);return `<tr class="${st.alert?'alert-row':''}"><td>${x.date}</td><td>${TYPES[x.type][0]}</td><td>${fmt(x.value)} ${TYPES[x.type][1]}</td><td>${st.delta}</td><td>${st.warning||'—'}</td><td><button ${canEdit()?'':'hidden'} onclick="editItem('readings','${x.id}')">Modifier</button> <button class="danger" ${canEdit()?'':'hidden'} onclick="removeItem('readings','${x.id}')">Supprimer</button></td></tr>`}).join('')||'<tr><td colspan="6">Aucun relevé</td></tr>'}</tbody></table></div></div>${address==='han'?deliveryPage():''}`;
+ <div class="scroll"><table><thead><tr><th>Date</th><th>Compteur</th><th>Index</th><th>Depuis le précédent</th><th>Contrôle</th><th>Actions</th></tr></thead><tbody>${rr.map(x=>{const st=status(x);return `<tr class="${st.alert?'alert-row':st.indicative?'indicative-row':''}"><td>${x.date}</td><td>${TYPES[x.type][0]}</td><td>${fmt(x.value)} ${TYPES[x.type][1]}</td><td>${st.delta}</td><td>${st.warning||'—'}</td><td><button ${canEdit()?'':'hidden'} onclick="editItem('readings','${x.id}')">Modifier</button> <button class="danger" ${canEdit()?'':'hidden'} onclick="removeItem('readings','${x.id}')">Supprimer</button></td></tr>`}).join('')||'<tr><td colspan="6">Aucun relevé</td></tr>'}</tbody></table></div></div>${address==='han'?deliveryPage():''}`;
 }// Alertes de consommation : comparaison des mêmes jours de l'année précédente.
 // Une année bissextile peut déplacer les bornes d'un jour ; les dates sont ajustées.
 const CONSUMPTION_LIMITS={eau:25,elecJour:30,elecNuit:30,gaz:20,chauffage:20};
 const MIN_REFERENCE={eau:0.1,elecJour:2,elecNuit:2,gaz:0.5,chauffage:2};
+const HEATING_MAX_REFERENCE_INTERVAL=60;
 function priorYearDate(iso){
  const [y,m,d]=iso.split('-').map(Number);
  const x=new Date(Date.UTC(y-1,m-1,d));
@@ -213,10 +220,10 @@ function consumptionAlert(home,type,date,value,excludeId=null){
  const oldDays=dayNumber(oldEnd)-dayNumber(oldStart);
  if(oldDays<1)return null;
  // Recalcul sur les intervalles existants, sans extrapoler les périodes sans relevés.
- let quantity=0,covered=0;
+ let quantity=0,covered=0,maxReferenceInterval=0;
  for(const p of seasonalIntervals(home,type)){
   const overlap=Math.max(0,Math.min(dayNumber(oldEnd),p.end)-Math.max(dayNumber(oldStart),p.start));
-  if(overlap>0){quantity+=p.delta*overlap/p.days;covered+=overlap}
+  if(overlap>0){quantity+=p.delta*overlap/p.days;covered+=overlap;maxReferenceInterval=Math.max(maxReferenceInterval,p.days)}
  }
  const missing=oldDays-covered;
  if(!covered||missing>7||missing/oldDays>0.05||quantity<MIN_REFERENCE[type])return null;
@@ -224,11 +231,11 @@ function consumptionAlert(home,type,date,value,excludeId=null){
  if(historicalDaily<=0)return null;
  const rise=(currentDaily/historicalDaily-1)*100;
  if(rise<CONSUMPTION_LIMITS[type])return null;
- return {rise,days,currentDaily,historicalDaily,limit:CONSUMPTION_LIMITS[type],type,oldStart,oldEnd};
+ return {rise,days,currentDaily,historicalDaily,limit:CONSUMPTION_LIMITS[type],type,oldStart,oldEnd,maxReferenceInterval,indicative:type==='chauffage'&&maxReferenceInterval>HEATING_MAX_REFERENCE_INTERVAL};
 }
 function alertMarkup(a){
  if(!a)return '';
- return `<div class="consumption-alert" role="alert"><strong>⚠️ Surconsommation possible : +${fmt(a.rise,1)} %</strong><p>Seuil d’alerte : +${a.limit} %. Moyenne actuelle : ${fmt(a.currentDaily)} ${TYPES[a.type][1]}/jour ; même période l’année précédente : ${fmt(a.historicalDaily)} ${TYPES[a.type][1]}/jour.</p><p>Vérifie l’index et recherche une éventuelle fuite, perte ou consommation inhabituelle. Une hausse n’est pas une preuve de dysfonctionnement.</p></div>`;
+ return `<div class="consumption-alert" role="alert" style="${a.indicative?'background:#fff4dd;border-color:#d99115;color:#704500;':''}"><strong>${a.indicative?'🟠 Hausse indicative':'⚠️ Surconsommation possible'} : +${fmt(a.rise,1)} %</strong><p>Seuil d’alerte : +${a.limit} %. Moyenne actuelle : ${fmt(a.currentDaily)} ${TYPES[a.type][1]}/jour ; même période l’année précédente : ${fmt(a.historicalDaily)} ${TYPES[a.type][1]}/jour.</p><p>${a.indicative?'Référence historique trop espacée ('+a.maxReferenceInterval+' jours entre deux relevés, maximum '+HEATING_MAX_REFERENCE_INTERVAL+' pour une alerte rouge). Cette hausse ne permet pas de conclure à une surconsommation saisonnière fiable.':'Vérifie l’index et recherche une éventuelle fuite, perte ou consommation inhabituelle. Une hausse n’est pas une preuve de dysfonctionnement.'}</p></div>`;
 }
 function checkConsumptionAlert(home,type,date,value,excludeId,form){
  const a=consumptionAlert(home,type,date,value,excludeId),panel=form.querySelector('.consumption-warning');
@@ -237,7 +244,7 @@ function checkConsumptionAlert(home,type,date,value,excludeId,form){
  if(panel?.dataset.key===key&&panel.querySelector('input[type=checkbox]')?.checked)return true;
  const content=alertMarkup(a)+'<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" style="width:auto;flex-shrink:0"> J’ai vérifié cet index et je confirme son enregistrement malgré l’alerte.</label>';
  if(panel){panel.dataset.key=key;panel.innerHTML=content}else{const el=document.createElement('div');el.className='consumption-warning';el.dataset.key=key;el.style.gridColumn='1 / -1';el.innerHTML=content;form.appendChild(el)}
- notify('⚠️ Hausse inhabituelle détectée : vérifie et confirme le relevé.',true);
+ notify(a.indicative?'Hausse indicative : comparaison historique insuffisamment précise. Vérifie le relevé.':'⚠️ Hausse inhabituelle détectée : vérifie et confirme le relevé.',!a.indicative);
  return false;
 }
 function latestConsumptionAlerts(home){
