@@ -1,6 +1,6 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.15</title><style>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.16</title><style>
 :root{font-family:system-ui,Arial;color:#192a39;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#153b59;color:white;padding:18px 5%}h1{margin:0;font-size:1.4rem}main{max-width:1600px;width:100%;margin:auto;padding:18px}nav{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}#addresses{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}#addresses button{min-height:68px;font-size:1.05rem;font-weight:600;padding:14px 8px;white-space:normal;overflow-wrap:anywhere}#tabs{display:flex;gap:7px;flex-wrap:wrap}button{border:0;border-radius:8px;padding:10px 14px;background:#dce8f1;color:#163750;cursor:pointer}button.active,button.primary{background:#17689a;color:white}.panel{background:white;border-radius:13px;padding:18px;margin:13px 0;box-shadow:0 2px 10px #0001}label{display:block;font-size:.86rem;margin:8px 0 4px}input,select{width:100%;padding:10px;border:1px solid #c8d4dc;border-radius:7px;font:inherit}form,.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}.muted{color:#607384;font-size:.9rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}.card{padding:16px;background:#edf5fa;border-radius:10px}.big{font-size:1.35rem;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e4e9ed}th{font-size:.84rem} .scroll{overflow:auto}.consumption-alert{background:#fff0f0;color:#9b1c1c;border:2px solid #c92d2d;border-radius:9px;padding:12px;margin:10px 0;grid-column:1 / -1}.alert-row{background:#fff0f0;color:#9b1c1c}.danger{background:#fbe3e1;color:#8a2929}.small{font-size:.82rem}.notice{padding:12px;background:#fff1d5;border-radius:8px}canvas{width:100%;max-height:260px}details.explanation{margin:10px 0}details.explanation summary{cursor:pointer;color:#17689a;font-size:.86rem;font-weight:600}details.explanation[open]{padding-bottom:5px} @media(max-width:600px){main{padding:10px}.panel{padding:12px}th,td{padding:7px;font-size:.8rem}}
- .indicative-row{background:#fff4dd;color:#704500} .indicative-row td{color:#704500}</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.15 — connecté à Supabase</small></h1></header><main>
+ .indicative-row{background:#fff4dd;color:#704500} .indicative-row td{color:#704500}</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.16 — connecté à Supabase</small></h1></header><main>
 <div class="notice" id="storageStatus">Connexion Supabase requise. Les relevés sont stockés dans Supabase ; la session de connexion est conservée sur cet appareil.</div><div class="panel" id="authPanel"><h2>Connexion</h2><form id="loginForm" onsubmit="event.preventDefault();login();return false;"><div><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="username" required></div><div><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password" required></div><button class="primary" id="loginButton" type="button" onclick="login()">Se connecter</button></form><p id="loginStatus" role="status" aria-live="polite" class="muted">Prêt à se connecter.</p></div><div id="accountPanel" hidden class="panel"><span id="accountLabel"></span> <button type="button" onclick="logout()">Se déconnecter</button> <button type="button" onclick="loadAll()">Actualiser les données</button></div>
 <div id="feedback" role="status" aria-live="polite" style="display:none;padding:12px;border-radius:8px;background:#e1f5e8;margin-top:12px"></div><div id="appArea" hidden><nav id="addresses"></nav><nav id="tabs"></nav><section id="view"></section></div>
 </main><script>
@@ -350,49 +350,45 @@ function seasonStats(addr,type,start,end){
 function heatingWinterComparison(){
  if(address!=='chauve')return '';
  const now=localToday(),type='chauffage',unit=TYPES[type][1];
- const ws=seasonDates.winterStart,we=seasonDates.winterEnd;
- const ss=seasonDates.summerStart,se=seasonDates.summerEnd;
+ const ws=seasonDates.winterStart,we=seasonDates.winterEnd,ss=seasonDates.summerStart,se=seasonDates.summerEnd;
  if(!ws||!we||!ss||!se||ws>we||ss>se)return '<div class="panel"><p class="notice">Dates saisonnières invalides.</p></div>';
- const shift=(iso,years)=>historicDate(iso,years);
- const prevStart=shift(ws,1),prevEnd=shift(we,1);
+ const prevStart=historicDate(ws,1),prevEnd=historicDate(we,1);
  const previous=seasonStats(address,type,prevStart,prevEnd);
  const summer=seasonStats(address,type,ss,se);
+ // Only count the current winter up to its latest entered reading.
  const readings=data.readings.filter(r=>r.address===address&&r.type===type&&r.date>=ws&&r.date<=now).sort((a,b)=>a.date.localeCompare(b.date));
  const last=readings.length?readings[readings.length-1].date:null;
- const actualEnd=last&&last<we?last:we;
- const current=last&&last>=ws?seasonStats(address,type,ws,actualEnd):null;
- const prevDays=dayNumber(prevEnd)-dayNumber(prevStart)+1;
- const summerDays=dayNumber(se)-dayNumber(ss)+1;
- const actualDays=actualEnd&&actualEnd>=ws?dayNumber(actualEnd)-dayNumber(ws)+1:0;
- const coverage=(r,days)=>days>0?(r?.covered||0)/days:0;
- const prevOk=coverage(previous,prevDays)>=0.95;
+ const actualEnd=last?(last<we?last:we):null;
+ const current=actualEnd?seasonStats(address,type,ws,actualEnd):null;
+ const days=(a,b)=>dayNumber(b)-dayNumber(a)+1;
+ const prevDays=days(prevStart,prevEnd),summerDays=days(ss,se),actualDays=actualEnd?days(ws,actualEnd):0;
+ const coverage=(r,n)=>n>0?(r?.covered||0)/n:0;
+ const prevOk=prevEnd<=now&&coverage(previous,prevDays)>=0.95;
  const summerOk=se<=now&&coverage(summer,summerDays)>=0.95;
  const actualOk=actualDays>0&&coverage(current,actualDays)>=0.95;
- const remainingStart=last?nextDayISO(actualEnd):null;
- const remainingStartPrev=remainingStart?shift(remainingStart,1):null;
- const remaining=remainingStart&&remainingStart<=we?seasonStats(address,type,remainingStartPrev,prevEnd):null;
- const remainingDays=remainingStart&&remainingStart<=we?dayNumber(prevEnd)-dayNumber(remainingStartPrev)+1:0;
- const remainingOk=remainingDays===0||coverage(remaining,remainingDays)>=0.95;
  const ongoing=ws<=now&&we>now;
- const projected=ongoing&&prevOk&&actualOk&&remainingOk&&last?current.quantity+(remaining?.quantity||0):null;
+ const remainingStart=actualEnd?nextDayISO(actualEnd):null;
+ const remainingPrev=remainingStart?historicDate(remainingStart,1):null;
+ const remainingDays=remainingPrev&&remainingPrev<=prevEnd?days(remainingPrev,prevEnd):0;
+ const remaining=remainingDays>0?seasonStats(address,type,remainingPrev,prevEnd):null;
+ const remainingOk=remainingDays===0||coverage(remaining,remainingDays)>=0.95;
+ const projected=ongoing&&prevOk&&actualOk&&remainingOk?current.quantity+(remaining?.quantity||0):null;
  const rows=[
-  {name:'Hiver précédent complet',range:prevStart+' → '+prevEnd,stats:previous,days:prevDays,ok:prevOk,color:'#8298ae'},
-  {name:'Été complet',range:ss+' → '+se,stats:summer,days:summerDays,ok:summerOk,color:'#d9a441'},
-  {name:'Hiver actuel — réel',range:ws+' → '+(last||'aucun relevé'),stats:current,days:actualDays,ok:actualOk,color:'#2563eb'}
+  {label:'Hiver précédent complet',dates:prevStart+' → '+prevEnd,r:previous,days:prevDays,ok:prevOk,color:'#8298ae'},
+  {label:'Été complet',dates:ss+' → '+se,r:summer,days:summerDays,ok:summerOk,color:'#d9a441'}
  ];
- const max=Math.max(1,...rows.map(r=>r.stats?.quantity||0),projected||0);
- const line=(r)=>{
-  const qty=r.stats?.covered?fmt(r.stats.quantity)+' '+unit:'—';
-  const width=Math.max(0,(r.stats?.quantity||0)/max*100);
-  return `<div style="margin:15px 0"><strong>${r.name}</strong><div class="muted">${r.range}</div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;background:#e6edf3;height:27px;border-radius:6px;overflow:hidden"><div style="width:${width}%;height:100%;background:${r.color}"></div></div><strong style="min-width:110px;text-align:right">${qty}</strong></div><div class="muted">Couverture : ${Math.round(r.stats?.covered||0)}/${r.days} jours — ${r.ok?'suffisante':'insuffisante ou période non terminée'}</div></div>`;
- };
- const actualQty=current?.quantity||0;
- const actualWidth=projected===null?0:actualQty/max*100;
- const restWidth=projected===null?0:Math.max(0,projected-actualQty)/max*100;
- const forecast=projected===null
-  ?`<p class="notice">Projection finale indisponible : il faut un relevé de l'hiver actuel et une couverture d'au moins 95 % de la période actuelle ainsi que de la période historique restante de l'hiver précédent.</p>`
-  :`<div style="margin-top:15px"><strong>Hiver actuel — estimation finale</strong><div style="display:flex;align-items:center;gap:10px"><div style="display:flex;flex:1;background:#e6edf3;height:30px;border-radius:6px;overflow:hidden"><div style="width:${actualWidth}%;background:#2563eb"></div><div style="width:${restWidth}%;background:#93c5fd"></div></div><strong style="min-width:110px;text-align:right">${fmt(projected)} ${unit}</strong></div><p class="muted">Réel : ${fmt(actualQty)} ${unit} jusqu'au ${last} · Reste estimé d'après ${remainingStartPrev} → ${prevEnd} : ${fmt(remaining?.quantity||0)} ${unit}.</p></div>`;
- return `<div class="panel"><h3>Chauffage collectif — hiver précédent / été / hiver actuel</h3><p class="muted">Consommations calculées entre relevés. La projection ajoute au réel de l'hiver actuel la consommation des mêmes dates restantes de l'hiver précédent, sans coefficient météo ni tendance récente.</p>${rows.map(line).join('')}${ongoing?forecast:'<p class="muted">La projection finale apparaît lorsque l’hiver actuel est en cours et que les relevés historiques sont suffisants.</p>'}<p class="muted">Les barres correspondent aux quantités affichées. Les périodes incomplètes sont signalées. L'interpolation entre deux index suppose une consommation uniforme dans cet intervalle.</p></div>`;
+ const actual=current?.covered?current.quantity:null;
+ const max=Math.max(1,...rows.map(r=>r.r?.quantity||0),projected||0,actual||0);
+ const makeBar=(qty,color)=>`<div style="width:${Math.max(0,(qty||0)/max*100)}%;height:100%;background:${color}"></div>`;
+ const renderRow=r=>`<div style="margin:16px 0"><strong>${r.label}</strong><div class="muted">${r.dates}</div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;background:#e6edf3;height:29px;border-radius:6px;overflow:hidden">${makeBar(r.r?.quantity,r.color)}</div><strong style="min-width:125px;text-align:right">${r.r?.covered?fmt(r.r.quantity)+' '+unit:'—'}</strong></div><div class="muted">Couverture : ${Math.round(r.r?.covered||0)}/${r.days} jours · ${r.ok?'période complète':'données insuffisantes pour un total définitif'}</div></div>`;
+ const currentBar=projected!==null
+   ?`<div style="display:flex;height:100%">${makeBar(actual,'#2563eb')}${makeBar(Math.max(0,projected-actual),'#93c5fd')}</div>`
+   :makeBar(actual,'#2563eb');
+ const currentLabel=actual===null?'—':fmt(actual)+' '+unit+(projected!==null?' / '+fmt(projected)+' '+unit:'');
+ const currentDetails=projected!==null
+  ?`<div class="muted">Bleu foncé : ${fmt(actual)} ${unit} réellement consommés jusqu'au ${actualEnd}. Bleu clair : ${fmt(projected-actual)} ${unit} estimés sur la période restante. <strong>Total prévu : ${fmt(projected)} ${unit}.</strong></div>`
+  :`<div class="muted">Réel jusqu'au ${actualEnd||'dernier relevé indisponible'} : ${actual===null?'—':fmt(actual)+' '+unit}. ${ongoing?'Prévision indisponible : couverture insuffisante des relevés actuels ou historiques.':'Aucune projection : hiver actuel hors période en cours.'}</div>`;
+ return `<div class="panel"><h3>Chauffage collectif — comparaison été / hiver</h3><p class="muted">Trois périodes, avec la consommation réelle et la prévision finale réunies sur la dernière ligne. Prévision fondée sur la consommation de la période restante de l'hiver précédent, sans correction météo.</p>${rows.map(renderRow).join('')}<div style="margin:16px 0"><strong>Hiver actuel — réel et prévu</strong><div class="muted">${ws} → ${we}</div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;background:#e6edf3;height:29px;border-radius:6px;overflow:hidden">${currentBar}</div><strong style="min-width:125px;text-align:right">${currentLabel}</strong></div>${currentDetails}<div class="muted">Couverture réelle : ${Math.round(current?.covered||0)}/${actualDays} jours écoulés jusqu'au dernier relevé.</div></div><p class="muted">Les jours non encadrés par des relevés ne sont pas inventés ; les consommations entre deux relevés sont réparties au prorata des jours.</p></div>`;
 }
 
 function seasonalPage(){
@@ -426,13 +422,14 @@ function periodPreset(value){
  else if(value==='winter'){start=seasonDates.winterStart;end=seasonDates.winterEnd;}
  else if(value==='seasons'){
   start=seasonDates.summerStart;end=seasonDates.summerEnd;
-  compare=true;compareStart=seasonDates.winterStart;compareEnd=seasonDates.winterEnd;
+  compare=address==='chauve'?false:true;compareStart=seasonDates.winterStart;compareEnd=seasonDates.winterEnd;
  }
  // Les raccourcis courants repartent toujours d'aujourd'hui, indépendamment du choix précédent.
  periodSelections[address]={...v,start,end,periodPreset:value,compare,compareStart,compareEnd,period1Start:compare?start:(v.period1Start||'2026-05-01'),period1End:compare?end:(v.period1End||'2026-09-30')};
  render();
 }
 
+function activateCustomHeatingComparison(){const v=periodSelections[address]||{};periodSelections[address]={...v,compare:true,periodPreset:null,period1Start:seasonDates.summerStart,period1End:seasonDates.summerEnd,compareStart:seasonDates.winterStart,compareEnd:seasonDates.winterEnd};render()}
 function setPeriodOptions(){
  const v=periodSelections[address]||{};
  periodSelections[address]={...v,kind:$('periodKind').value,start:$('periodStart').value,end:$('periodEnd').value,periodPreset:null,compare:$('periodCompare').checked,period1Start:$('periodCompare1Start').value,period1End:$('periodCompare1End').value,compareStart:$('periodCompareStart').value,compareEnd:$('periodCompareEnd').value,historyMode:$('periodHistoryMode').value};render();
@@ -535,6 +532,7 @@ function periodsPage(){
   const complete=c.dayCovered===c.requested&&c.nightCovered===c.requested;
   return `<div class="panel"><h3>Répartition de l’électricité — période sélectionnée</h3><p><strong>Jour : ${fmt(c.day)} kWh (${fmt(ratio,1)} %)</strong> · <strong>Nuit : ${fmt(c.night)} kWh (${fmt(100-ratio,1)} %)</strong></p><div role="img" aria-label="Jour ${fmt(ratio,1)} %, nuit ${fmt(100-ratio,1)} %" style="height:18px;border-radius:8px;overflow:hidden;display:flex;background:#f59e0b"><div style="width:${ratio}%;background:#2563eb"></div></div><p class="muted">Couverture : jour ${c.dayCovered}/${c.requested} jours ; nuit ${c.nightCovered}/${c.requested} jours. ${complete?'Période entièrement couverte.':'Attention : couverture partielle. Les pourcentages portent sur les consommations calculables ; les intervalles non couverts peuvent influencer la répartition.'}</p></div>`;
  })():'';
+ const heatingSeasonView=address==='chauve'&&kind==='chauffage'&&v.periodPreset==='seasons'&&!v.compare;
  const seasonComparison=!!v.compare&&period1Start===seasonDates.summerStart&&compareStart===seasonDates.winterStart;
  const compareCell=(r,label,from,to)=>{
   const elapsedEnd=to>now?now:to;
@@ -544,7 +542,7 @@ function periodsPage(){
   const status=expected===0?'Pas encore commencée':coverage<0.95?'Couverture insuffisante':to>now?'Saison en cours':'Saison terminée';
   return `<tr><th>${label}</th><td>${from} au ${elapsedEnd<from?'—':elapsedEnd}</td><td>${r&&covered?fmt(r.quantity)+' '+unit:'—'}</td><td>${covered} / ${expected}</td><td>${covered?fmt(r.quantity/covered)+' '+unit+'/j':'—'}</td><td>${covered?fmt(r.quantity/covered*30.44)+' '+unit+'/mois':'—'}</td><td>${status}</td></tr>`;
  };
- const seasonTable=seasonComparison?`<div class="panel"><h3>Comparaison été / hiver — ${esc(TYPES[kind]?.[0]||'Électricité totale')}</h3><div class="scroll"><table><thead><tr><th>Saison</th><th>Dates effectives</th><th>Consommation couverte</th><th>Jours couverts / écoulés</th><th>Moyenne quotidienne</th><th>Moyenne mensuelle (30,44 j)</th><th>État</th></tr></thead><tbody>${compareCell(aCompare,'Été',period1Start,period1End)}${compareCell(b,'Hiver',compareStart,compareEnd)}</tbody></table></div><p><strong>Écart hiver / été des moyennes journalières :</strong> ${dailyDiff===null?'Non calculable':fmt(dailyDiff,1)+' %'}</p><p class="muted">Les périodes incomplètes et les jours non couverts sont signalés. Les consommations entre relevés sont réparties au prorata des jours ; une comparaison fiable demande des relevés proches des limites des saisons.</p></div>`:'';
+ const seasonTable=seasonComparison&&kind!=='chauffage'?`<div class="panel"><h3>Comparaison été / hiver — ${esc(TYPES[kind]?.[0]||'Électricité totale')}</h3><div class="scroll"><table><thead><tr><th>Saison</th><th>Dates effectives</th><th>Consommation couverte</th><th>Jours couverts / écoulés</th><th>Moyenne quotidienne</th><th>Moyenne mensuelle (30,44 j)</th><th>État</th></tr></thead><tbody>${compareCell(aCompare,'Été',period1Start,period1End)}${compareCell(b,'Hiver',compareStart,compareEnd)}</tbody></table></div><p><strong>Écart hiver / été des moyennes journalières :</strong> ${dailyDiff===null?'Non calculable':fmt(dailyDiff,1)+' %'}</p><p class="muted">Les périodes incomplètes et les jours non couverts sont signalés. Les consommations entre relevés sont réparties au prorata des jours ; une comparaison fiable demande des relevés proches des limites des saisons.</p></div>`:'';
  const historyRows=valid&&!v.compare?historicalComparison(kind,start,end,historyMode,now,v.periodPreset):[];
  const historicalHTML=valid&&!v.compare?historyBars(historyRows,unit):'';
  const multiHistory=historyRows.filter(r=>r.n>0&&r.adequate&&r.avg!==null);
@@ -558,7 +556,7 @@ function periodsPage(){
  <div class="entry-form"><div><label>Consommation</label><select id="periodKind">${kinds.map(([k,n])=>`<option value="${k}" ${kind===k?'selected':''}>${n}</option>`).join('')}</select></div><div><label>Du</label><input id="periodStart" type="date" value="${start}"></div><div><label>Au</label><input id="periodEnd" type="date" value="${end}" max="${now}"></div><button class="primary" type="button" onclick="setPeriodOptions()">Calculer</button></div>
  <p><button type="button" onclick="periodPreset('month')">Ce mois</button> <button type="button" onclick="periodPreset('last30')">30 derniers jours</button> <button type="button" onclick="periodPreset('year')">Cette année</button> <button type="button" onclick="periodPreset('summer')">Été 2026</button> <button type="button" onclick="periodPreset('winter')">Hiver 2026–27</button> <button type="button" onclick="periodPreset('seasons')">Comparer été / hiver</button></p>
  ${!valid?'<p class="notice">Période invalide : vérifie les dates.</p>':!a?.covered?'<p class="notice">Pas assez de relevés encadrant cette période pour calculer une consommation.</p>':`<div class="cards">${cell('Consommation mesurée / estimée',result(a))}${cell('Moyenne par jour couvert',fmt(a.quantity/a.covered)+' '+unit)}${cell('Moyenne par mois (30,44 j)',fmt(a.quantity/a.covered*30.44)+' '+unit)}</div><p class="muted">Jours couverts : ${a.covered} / ${a.requested}. ${a.covered<a.requested?'Attention : période partiellement couverte.':'Période entièrement couverte.'}</p>`}
- </div>${totalBreakdown}<div class="panel"><h3>Comparer avec les années précédentes</h3>
+ </div>${totalBreakdown}${heatingSeasonView?heatingWinterComparison()+'<div class="panel"><button type="button" onclick="activateCustomHeatingComparison()">Comparer deux périodes personnalisées</button></div>':`<div class="panel"><h3>Comparer avec les années précédentes</h3>
  <p class="muted">Pour les années terminées, chaque barre affiche la consommation de la période complète sélectionnée. Pour la période en cours, elle s’arrête au dernier relevé disponible, sans projection. Les chiffres sont affichés à droite. Les durées différentes sont signalées : compare les moyennes journalières pour évaluer une évolution.</p>
  <label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" id="periodCompare" ${v.compare?'checked':''} onchange="setPeriodOptions()"> Comparer deux périodes personnalisées</label>
  <div ${v.compare?'style="display:none"':''}><label>Historique de comparaison</label><select id="periodHistoryMode" onchange="setPeriodOptions()"><option value="previous" ${historyMode==='previous'?'selected':''}>Année précédente</option><option value="five" ${historyMode==='five'?'selected':''}>5 dernières années</option><option value="all" ${historyMode==='all'?'selected':''}>Toutes les années depuis le premier relevé</option></select>
@@ -568,7 +566,7 @@ function periodsPage(){
  <div class="entry-form"><div><label>Période 1 — du</label><input id="periodCompare1Start" type="date" value="${period1Start}"></div><div><label>Période 1 — au</label><input id="periodCompare1End" type="date" value="${period1End}"></div></div>
  <div class="entry-form"><div><label>Période 2 — du</label><input id="periodCompareStart" type="date" value="${compareStart}"></div><div><label>Période 2 — au</label><input id="periodCompareEnd" type="date" value="${compareEnd}"></div><button type="button" onclick="setPeriodOptions()">Comparer</button></div>
  ${v.compare?(!valid1||!valid2?'<p class="notice">Dates invalides : vérifie les quatre dates. Une date de début ne peut dépasser la date de fin et une période ne peut commencer dans le futur.</p>':aCompare?.covered&&b?.covered?`${bar('Période 1',aCompare,'#2563eb')}${bar('Période 2',b,'#f59e0b')}<p><strong>Écart des consommations couvertes :</strong> ${diff===null?'—':fmt(diff,1)+' %'} ; <strong>écart des moyennes quotidiennes :</strong> ${dailyDiff===null?'—':fmt(dailyDiff,1)+' %'}</p><p class="muted">Pour comparer équitablement des périodes de durées différentes, compare les moyennes : période 1 ${fmt(aCompare.quantity/aCompare.covered)} ${unit}/jour ; période 2 ${fmt(b.quantity/b.covered)} ${unit}/jour.</p>${compareCoverage('Période 1',aCompare,period1Start,period1End,now)}${compareCoverage('Période 2',b,compareStart,compareEnd,now)}`:'<p class="notice">Données insuffisantes pour une comparaison : il faut des relevés encadrant chacune des périodes.</p>'):'<p class="muted">Active la comparaison personnalisée pour utiliser ces dates.</p>'}</div></div>
- ${seasonComparison&&kind==='chauffage'?heatingWinterComparison():''}${seasonTable}\n <div class="panel"><details><summary style="cursor:pointer;font-weight:700">Historique détaillé des intervalles entre relevés — ${esc(relevant().name)}</summary><div class="scroll"><table><tr><th>Compteur</th><th>Du</th><th>Au</th><th>Consommation</th><th>Jours</th></tr>${relevant().meters.flatMap(k=>periods(k).map(p=>`<tr><td>${TYPES[k][0]}</td><td>${p.from}</td><td>${p.to}</td><td>${fmt(p.delta)} ${TYPES[k][1]}</td><td>${p.days}</td></tr>`)).join('')}</table></div></details></div>`;
+ ${seasonTable}`}\n <div class="panel"><details><summary style="cursor:pointer;font-weight:700">Historique détaillé des intervalles entre relevés — ${esc(relevant().name)}</summary><div class="scroll"><table><tr><th>Compteur</th><th>Du</th><th>Au</th><th>Consommation</th><th>Jours</th></tr>${relevant().meters.flatMap(k=>periods(k).map(p=>`<tr><td>${TYPES[k][0]}</td><td>${p.from}</td><td>${p.to}</td><td>${fmt(p.delta)} ${TYPES[k][1]}</td><td>${p.days}</td></tr>`)).join('')}</table></div></details></div>`;
 }
 
 function comparisonsPage(){return seasonalPage()+`<div class="panel"><h2>Comparaisons des consommations</h2><p class="muted">Moyenne sur toute la période mesurée. Comparaison par type de compteur ; les unités différentes ne sont pas additionnées.</p><div class="scroll"><table><tr><th>Adresse</th><th>Compteur</th><th>Jours</th><th>Consommation</th><th>Moyenne/jour</th></tr>${ADDRESSES.flatMap(a=>a.meters.map(k=>{let old=address;address=a.id;let s=meterSummary(k);address=old;return `<tr><td>${a.name}</td><td>${TYPES[k][0]}</td><td>${s?s.days:'—'}</td><td>${s?fmt(s.delta)+' '+TYPES[k][1]:'—'}</td><td>${s?fmt(s.avg):'—'}</td><td>${s?fmt(s.annual):'—'}</td></tr>`})).join('')}</table></div></div><div class="panel"><h3>Périodes entre relevés — ${relevant().name}</h3><div class="scroll"><table><tr><th>Compteur</th><th>Du</th><th>Au</th><th>Consommation</th><th>Jours</th></tr>${relevant().meters.flatMap(k=>periods(k).map(p=>`<tr><td>${TYPES[k][0]}</td><td>${p.from}</td><td>${p.to}</td><td>${fmt(p.delta)} ${TYPES[k][1]}</td><td>${p.days}</td></tr>`)).join('')}</table></div></div>`}
