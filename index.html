@@ -1,6 +1,6 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.12</title><style>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mes Consommations V3.4.13</title><style>
 :root{font-family:system-ui,Arial;color:#192a39;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#153b59;color:white;padding:18px 5%}h1{margin:0;font-size:1.4rem}main{max-width:1600px;width:100%;margin:auto;padding:18px}nav{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}#addresses{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}#addresses button{min-height:68px;font-size:1.05rem;font-weight:600;padding:14px 8px;white-space:normal;overflow-wrap:anywhere}#tabs{display:flex;gap:7px;flex-wrap:wrap}button{border:0;border-radius:8px;padding:10px 14px;background:#dce8f1;color:#163750;cursor:pointer}button.active,button.primary{background:#17689a;color:white}.panel{background:white;border-radius:13px;padding:18px;margin:13px 0;box-shadow:0 2px 10px #0001}label{display:block;font-size:.86rem;margin:8px 0 4px}input,select{width:100%;padding:10px;border:1px solid #c8d4dc;border-radius:7px;font:inherit}form,.entry-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}.muted{color:#607384;font-size:.9rem}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}.card{padding:16px;background:#edf5fa;border-radius:10px}.big{font-size:1.35rem;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e4e9ed}th{font-size:.84rem} .scroll{overflow:auto}.consumption-alert{background:#fff0f0;color:#9b1c1c;border:2px solid #c92d2d;border-radius:9px;padding:12px;margin:10px 0;grid-column:1 / -1}.alert-row{background:#fff0f0;color:#9b1c1c}.danger{background:#fbe3e1;color:#8a2929}.small{font-size:.82rem}.notice{padding:12px;background:#fff1d5;border-radius:8px}canvas{width:100%;max-height:260px}details.explanation{margin:10px 0}details.explanation summary{cursor:pointer;color:#17689a;font-size:.86rem;font-weight:600}details.explanation[open]{padding-bottom:5px} @media(max-width:600px){main{padding:10px}.panel{padding:12px}th,td{padding:7px;font-size:.8rem}}
- .indicative-row{background:#fff4dd;color:#704500} .indicative-row td{color:#704500}</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.12 — connecté à Supabase</small></h1></header><main>
+ .indicative-row{background:#fff4dd;color:#704500} .indicative-row td{color:#704500}</style><meta name="theme-color" content="#153b59"><meta name="application-name" content="Mes Consommations"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png"><link rel="apple-touch-icon" href="./icon-192.png"></head><body><header><h1>⚡ Mes Consommations <small>V3.4.13 — connecté à Supabase</small></h1></header><main>
 <div class="notice" id="storageStatus">Connexion Supabase requise. Les relevés sont stockés dans Supabase ; la session de connexion est conservée sur cet appareil.</div><div class="panel" id="authPanel"><h2>Connexion</h2><form id="loginForm" onsubmit="event.preventDefault();login();return false;"><div><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="username" required></div><div><label>Mot de passe</label><input type="password" id="loginPassword" autocomplete="current-password" required></div><button class="primary" id="loginButton" type="button" onclick="login()">Se connecter</button></form><p id="loginStatus" role="status" aria-live="polite" class="muted">Prêt à se connecter.</p></div><div id="accountPanel" hidden class="panel"><span id="accountLabel"></span> <button type="button" onclick="logout()">Se déconnecter</button> <button type="button" onclick="loadAll()">Actualiser les données</button></div>
 <div id="feedback" role="status" aria-live="polite" style="display:none;padding:12px;border-radius:8px;background:#e1f5e8;margin-top:12px"></div><div id="appArea" hidden><nav id="addresses"></nav><nav id="tabs"></nav><section id="view"></section></div>
 </main><script>
@@ -385,7 +385,7 @@ function periodPreset(value){
 
 function setPeriodOptions(){
  const v=periodSelections[address]||{};
- periodSelections[address]={...v,kind:$('periodKind').value,start:$('periodStart').value,end:$('periodEnd').value,compare:$('periodCompare').checked,period1Start:$('periodCompare1Start').value,period1End:$('periodCompare1End').value,compareStart:$('periodCompareStart').value,compareEnd:$('periodCompareEnd').value};render();
+ periodSelections[address]={...v,kind:$('periodKind').value,start:$('periodStart').value,end:$('periodEnd').value,compare:$('periodCompare').checked,period1Start:$('periodCompare1Start').value,period1End:$('periodCompare1End').value,compareStart:$('periodCompareStart').value,compareEnd:$('periodCompareEnd').value,historyMode:$('periodHistoryMode').value};render();
 }
 function compareCoverage(label,r,start,end,now){
  const effectiveEnd=end>now?now:end;
@@ -398,10 +398,49 @@ function compareCoverage(label,r,start,end,now){
  if(requested&&covered/requested<0.95)notes.push('comparaison insuffisamment couverte');
  return notes.length?'<p class="notice">'+label+' : '+notes.join(' ; ')+'.</p>':'<p class="muted">'+label+' : '+covered+' / '+requested+' jours couverts.</p>';
 }
+// Déplace une date vers une année historique en respectant les fins de mois (29 février inclus).
+function historicDate(iso,yearsBack){
+ const [y,m,d]=iso.split('-').map(Number);
+ const targetYear=y-yearsBack;
+ const lastDay=new Date(Date.UTC(targetYear,m,0)).getUTCDate();
+ return [targetYear,String(m).padStart(2,'0'),String(Math.min(d,lastDay)).padStart(2,'0')].join('-');
+}
+function historicalComparison(kind,start,end,mode,now){
+ const effectiveEnd=end>now?now:end;
+ if(start>effectiveEnd)return [];
+ const firstYears=data.readings.filter(r=>r.address===address&&(
+   kind==='elecTotal'?['elecJour','elecNuit'].includes(r.type):r.type===kind
+ )).map(r=>Number(r.date.slice(0,4)));
+ const oldest=firstYears.length?Math.min(...firstYears):Number(start.slice(0,4));
+ const maxBack=mode==='previous'?1:mode==='five'?5:Math.max(0,Number(start.slice(0,4))-oldest);
+ const rows=[];
+ for(let n=0;n<=maxBack;n++){
+  const from=historicDate(start,n),to=historicDate(effectiveEnd,n);
+  const result=periodQuantity(kind,from,to);
+  const requested=dayNumber(to)-dayNumber(from)+1;
+  const covered=result?.covered||0;
+  rows.push({n,from,to,requested,covered,quantity:result?.quantity||0,avg:covered?(result.quantity/covered):null,
+   adequate:requested>0&&covered/requested>=0.95});
+ }
+ return rows;
+}
+function historyBars(rows,unit){
+ const max=Math.max(1,...rows.filter(r=>r.covered>0).map(r=>r.quantity));
+ const current=rows[0];
+ const currentAvg=current?.adequate?current.avg:null;
+ return `<div class="history-bars">${rows.map((r,i)=>{
+  const pct=Math.max(0,Math.min(100,r.quantity/max*100));
+  const label=i===0?'Période actuelle':String(r.from.slice(0,4))+'–'+String(r.to.slice(0,4));
+  const status=r.covered===0?'Non calculable':!r.adequate?'Couverture insuffisante':i===0?'Référence actuelle':'Comparaison disponible';
+  const delta=i>0&&currentAvg!==null&&r.adequate&&r.avg>0?((currentAvg/r.avg)-1)*100:null;
+  return `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>${label}</strong><span>${r.from} → ${r.to}</span></div><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;background:#e4ebf0;border-radius:7px;overflow:hidden;height:30px"><div style="height:100%;width:${pct}%;background:${i===0?'#2563eb':'#7892a9'};min-width:${r.quantity>0?'2px':'0'}"></div></div><strong style="min-width:100px;text-align:right;white-space:nowrap">${r.covered?fmt(r.quantity)+' '+unit:'—'}</strong></div><div class="muted" style="font-size:.88em">Jours couverts : ${r.covered}/${r.requested} · ${r.covered?fmt(r.avg)+' '+unit+'/jour':'—'} · ${status}${delta!==null?' · Écart actuel : '+(delta>=0?'+':'')+fmt(delta,1)+' %':''}</div></div>`;
+ }).join('')}</div>`;
+}
 function periodsPage(){
  const now=localToday(),v=periodSelections[address]||{};
  const kind=relevant().meters.includes(v.kind)||v.kind==='elecTotal'?v.kind:'eau';
  const start=v.start||now.slice(0,7)+'-01',end=v.end||now;
+ const historyMode=['previous','five','all'].includes(v.historyMode)?v.historyMode:'previous';
  const period1Start=v.period1Start||'2026-05-01',period1End=v.period1End||'2026-09-30';
  const compareStart=v.compareStart||'2025-05-01';
  const compareEnd=v.compareEnd||'2025-09-30';
@@ -433,16 +472,29 @@ function periodsPage(){
   return `<tr><th>${label}</th><td>${from} au ${elapsedEnd<from?'—':elapsedEnd}</td><td>${r&&covered?fmt(r.quantity)+' '+unit:'—'}</td><td>${covered} / ${expected}</td><td>${covered?fmt(r.quantity/covered)+' '+unit+'/j':'—'}</td><td>${covered?fmt(r.quantity/covered*30.44)+' '+unit+'/mois':'—'}</td><td>${status}</td></tr>`;
  };
  const seasonTable=seasonComparison?`<div class="panel"><h3>Comparaison été / hiver — ${esc(TYPES[kind]?.[0]||'Électricité totale')}</h3><div class="scroll"><table><thead><tr><th>Saison</th><th>Dates effectives</th><th>Consommation couverte</th><th>Jours couverts / écoulés</th><th>Moyenne quotidienne</th><th>Moyenne mensuelle (30,44 j)</th><th>État</th></tr></thead><tbody>${compareCell(aCompare,'Été',period1Start,period1End)}${compareCell(b,'Hiver',compareStart,compareEnd)}</tbody></table></div><p><strong>Écart hiver / été des moyennes journalières :</strong> ${dailyDiff===null?'Non calculable':fmt(dailyDiff,1)+' %'}</p><p class="muted">Les périodes incomplètes et les jours non couverts sont signalés. Les consommations entre relevés sont réparties au prorata des jours ; une comparaison fiable demande des relevés proches des limites des saisons.</p></div>`:'';
+ const historyRows=valid&&!v.compare?historicalComparison(kind,start,end,historyMode,now):[];
+ const historicalHTML=valid&&!v.compare?historyBars(historyRows,unit):'';
+ const multiHistory=historyRows.filter(r=>r.n>0&&r.adequate&&r.avg!==null);
+ const historyAvg=multiHistory.length?multiHistory.reduce((sum,r)=>sum+r.avg,0)/multiHistory.length:null;
+ const historySummary=historyAvg!==null&&historyRows[0]?.adequate
+   ?`<p><strong>Écart de la moyenne journalière actuelle par rapport à ${multiHistory.length} année(s) comparable(s) :</strong> ${historyAvg>0?(historyRows[0].avg>=historyAvg?'+':'')+fmt((historyRows[0].avg/historyAvg-1)*100,1)+' %':'Non calculable'}</p>`
+   :'<p class="notice">Comparaison chiffrée non fiable : couverture insuffisante pour une ou plusieurs périodes. Les années sans données restent visibles.</p>';
  const bar=(name,r,color)=>`<div style="margin:9px 0"><strong>${name}</strong><div style="background:#e5ebef;border-radius:6px;overflow:hidden;height:22px"><div style="height:100%;width:${Math.max(0,(r?.quantity||0)/max*100)}%;background:${color}"></div></div><span class="small">${result(r)}</span></div>`;
  return `<div class="panel"><h2>Consommation sur une période — ${esc(relevant().name)}</h2>
  <p class="muted">Choisis un compteur et des dates inclusives. Les relevés intermédiaires sont répartis proportionnellement aux jours. Les jours sans relevés encadrants ne sont pas estimés.</p>
  <div class="entry-form"><div><label>Consommation</label><select id="periodKind">${kinds.map(([k,n])=>`<option value="${k}" ${kind===k?'selected':''}>${n}</option>`).join('')}</select></div><div><label>Du</label><input id="periodStart" type="date" value="${start}"></div><div><label>Au</label><input id="periodEnd" type="date" value="${end}" max="${now}"></div><button class="primary" type="button" onclick="setPeriodOptions()">Calculer</button></div>
  <p><button type="button" onclick="periodPreset('month')">Ce mois</button> <button type="button" onclick="periodPreset('last30')">30 derniers jours</button> <button type="button" onclick="periodPreset('year')">Cette année</button> <button type="button" onclick="periodPreset('summer')">Été 2026</button> <button type="button" onclick="periodPreset('winter')">Hiver 2026–27</button> <button type="button" onclick="periodPreset('seasons')">Comparer été / hiver</button></p>
  ${!valid?'<p class="notice">Période invalide : vérifie les dates.</p>':!a?.covered?'<p class="notice">Pas assez de relevés encadrant cette période pour calculer une consommation.</p>':`<div class="cards">${cell('Consommation mesurée / estimée',result(a))}${cell('Moyenne par jour couvert',fmt(a.quantity/a.covered)+' '+unit)}${cell('Moyenne par mois (30,44 j)',fmt(a.quantity/a.covered*30.44)+' '+unit)}</div><p class="muted">Jours couverts : ${a.covered} / ${a.requested}. ${a.covered<a.requested?'Attention : période partiellement couverte.':'Période entièrement couverte.'}</p>`}
- </div>${totalBreakdown}<div class="panel"><h3>Comparer avec une autre période</h3><p class="muted">Choisis librement deux périodes ou utilise « Comparer été / hiver ». Pour des durées différentes, privilégie les moyennes quotidiennes.</p><label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" id="periodCompare" ${v.compare?'checked':''}> Activer la comparaison</label>
+ </div>${totalBreakdown}<div class="panel"><h3>Comparer avec les années précédentes</h3>
+ <p class="muted">La période sélectionnée est comparée aux mêmes dates des années précédentes. Pour une saison en cours, seules les dates déjà écoulées sont comparées. Les barres représentent les consommations calculables, avec les chiffres à droite.</p>
+ <label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" id="periodCompare" ${v.compare?'checked':''} onchange="setPeriodOptions()"> Comparer deux périodes personnalisées</label>
+ <div ${v.compare?'style="display:none"':''}><label>Historique de comparaison</label><select id="periodHistoryMode" onchange="setPeriodOptions()"><option value="previous" ${historyMode==='previous'?'selected':''}>Année précédente</option><option value="five" ${historyMode==='five'?'selected':''}>5 dernières années</option><option value="all" ${historyMode==='all'?'selected':''}>Toutes les années depuis le premier relevé</option></select>
+ ${historicalHTML}${historySummary}</div>
+ <div ${v.compare?'':'style="display:none"'}>
+ <p class="muted">Choisis librement les quatre dates de la comparaison personnalisée.</p>
  <div class="entry-form"><div><label>Période 1 — du</label><input id="periodCompare1Start" type="date" value="${period1Start}"></div><div><label>Période 1 — au</label><input id="periodCompare1End" type="date" value="${period1End}"></div></div>
  <div class="entry-form"><div><label>Période 2 — du</label><input id="periodCompareStart" type="date" value="${compareStart}"></div><div><label>Période 2 — au</label><input id="periodCompareEnd" type="date" value="${compareEnd}"></div><button type="button" onclick="setPeriodOptions()">Comparer</button></div>
- ${v.compare?(!valid1||!valid2?'<p class="notice">Dates invalides : vérifie les quatre dates. Une date de début ne peut dépasser la date de fin et une période ne peut commencer dans le futur.</p>':aCompare?.covered&&b?.covered?`${bar('Période 1',aCompare,'#2563eb')}${bar('Période 2',b,'#f59e0b')}<p><strong>Écart des consommations couvertes :</strong> ${diff===null?'—':fmt(diff,1)+' %'} ; <strong>écart des moyennes quotidiennes :</strong> ${dailyDiff===null?'—':fmt(dailyDiff,1)+' %'}</p><p class="muted">Pour comparer équitablement des périodes de durées différentes, compare les moyennes : période 1 ${fmt(aCompare.quantity/aCompare.covered)} ${unit}/jour ; période 2 ${fmt(b.quantity/b.covered)} ${unit}/jour.</p>${compareCoverage('Période 1',aCompare,period1Start,period1End,now)}${compareCoverage('Période 2',b,compareStart,compareEnd,now)}`:'<p class="notice">Données insuffisantes pour une comparaison : il faut des relevés encadrant chacune des périodes.</p>'):'<p class="muted">Coche la case et sélectionne librement les quatre dates.</p>'}</div>
+ ${v.compare?(!valid1||!valid2?'<p class="notice">Dates invalides : vérifie les quatre dates. Une date de début ne peut dépasser la date de fin et une période ne peut commencer dans le futur.</p>':aCompare?.covered&&b?.covered?`${bar('Période 1',aCompare,'#2563eb')}${bar('Période 2',b,'#f59e0b')}<p><strong>Écart des consommations couvertes :</strong> ${diff===null?'—':fmt(diff,1)+' %'} ; <strong>écart des moyennes quotidiennes :</strong> ${dailyDiff===null?'—':fmt(dailyDiff,1)+' %'}</p><p class="muted">Pour comparer équitablement des périodes de durées différentes, compare les moyennes : période 1 ${fmt(aCompare.quantity/aCompare.covered)} ${unit}/jour ; période 2 ${fmt(b.quantity/b.covered)} ${unit}/jour.</p>${compareCoverage('Période 1',aCompare,period1Start,period1End,now)}${compareCoverage('Période 2',b,compareStart,compareEnd,now)}`:'<p class="notice">Données insuffisantes pour une comparaison : il faut des relevés encadrant chacune des périodes.</p>'):'<p class="muted">Active la comparaison personnalisée pour utiliser ces dates.</p>'}</div></div>
  ${seasonTable}\n <div class="panel"><details><summary style="cursor:pointer;font-weight:700">Historique détaillé des intervalles entre relevés — ${esc(relevant().name)}</summary><div class="scroll"><table><tr><th>Compteur</th><th>Du</th><th>Au</th><th>Consommation</th><th>Jours</th></tr>${relevant().meters.flatMap(k=>periods(k).map(p=>`<tr><td>${TYPES[k][0]}</td><td>${p.from}</td><td>${p.to}</td><td>${fmt(p.delta)} ${TYPES[k][1]}</td><td>${p.days}</td></tr>`)).join('')}</table></div></details></div>`;
 }
 
